@@ -1,0 +1,289 @@
+---
+title: 'Trabajo Práctico 1: Modelado Estadístico'
+author: "Sebastian"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## 1: Exploración Inicial
+
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+```
+
+
+Primero cargamos los datos
+
+```{r}
+refugio <- read_csv("refugio.csv")
+```
+
+
+### Número de animales:
+
+```{r}
+cat("Cantidad de animales:", nrow(refugio))
+```
+
+### Distribución de desenlaces:
+
+
+```{r}
+refugio %>%
+  count(desenlace) %>%
+  mutate(
+    porcentaje = round(100 * n / sum(n), 2)
+  )
+```
+
+```{r}
+refugio %>%
+  count(desenlace) %>%
+  mutate(
+    porcentaje = round(100 * n / sum(n), 2)
+  ) %>%
+  ggplot(aes(x = reorder(desenlace, -n), y = n)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = paste0(porcentaje, "%")),
+            vjust = -0.3) +
+  labs(
+    title = "Distribución de desenlaces",
+    x = "Desenlace",
+    y = "Cantidad de animales"
+  ) +
+  theme_minimal()
+```
+
+
+### Summary
+
+```{r}
+summary(refugio)
+```
+
+Del summary podemos destacar que: 
+
+* 56.33% de los animales son perros y el resto gatos. 
+
+* Hay solo dos categorías para sexo y no hay datos faltantes. 
+
+* Aproximadamente el 20% de los animales están esterilizados.
+
+* La mayoría de los animales son "jóvenes". El 25% de ellos tiene menos de 0.083 años (~ 1 mes), la mediana es 1 año y el 75% tiene menos de 2 años. Existen algunos animales muy viejos, hasta 24 años.
+
+* Hay 473 razas didintas.
+
+* En promedio los animales pasan 20.68 dias en el refugio. Y el 75% pasa menos de 23 días.
+
+
+### Glimpse
+
+```{r}
+glimpse(refugio)
+```
+
+
+### Exploración Adicional
+
+
+
+#### Sexo
+
+```{r}
+refugio %>%
+  count(sexo)
+```
+Veamos si estas cantidades se mantienen separando por perros y gatos.
+
+```{r}
+refugio %>%
+  ggplot(aes(x = sexo,
+             fill = factor(dog))) +
+  geom_bar(position = "dodge") +
+  labs(
+    x = "Sexo",
+    y = "Cantidad",
+    fill = "Perros vs Gatos"
+  ) +
+  scale_fill_manual(
+    values = c("0" = "tomato",
+               "1" = "steelblue"),
+    labels = c("Perro", "Gato")
+  ) +
+  theme_minimal()
+```
+En los gatos hay más hembras que machos. Mientras que en los perros sucede lo contrario.
+
+#### Edades
+
+
+```{r}
+ggplot(refugio, aes(x = age_years)) +
+  geom_histogram(bins = 30,
+                 fill = "steelblue",
+                 color = "black") +
+  labs(
+    title = "Distribucion de edades",
+    x = "Edad",
+    y = "Cantidad de animales"
+  ) +
+  theme_minimal()
+```
+Como habíamos visto en el summary, la mayor parte de los animales son jovenes. Veamos si hay alguna diferencia si separamos entre perros y gatos.
+
+
+```{r}
+ggplot(refugio,
+       aes(x = age_years)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 fill = "steelblue",
+                 color = "black",
+                 bins = 30) +
+  facet_wrap(~animal_type) +
+  labs(
+    x = "Edad",
+    y = "Densidad"
+  ) +
+  theme_minimal()
+```
+En los histogramas divididos por tipo de animal notamos que los gatos tienen mayor concentración en edades que no llegan al año. Más del 70% de los gatos caen en este grupo, mientras que con los perros no sucede lo mismo.
+
+#### Desenlaces según esterilización
+
+
+
+```{r}
+ggplot(refugio,
+       aes(x = desenlace,
+           fill = factor(sterilized))) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Desenlace",
+    y = "Proporción",
+    fill = "Esterilizado"
+  )
+```
+
+
+En la mayoría de los desenlaces, la proporción de animales esterilizados y no esterilizados es similar a la observada en la muestra total. Sin embargo, en la categoría "Devolución" se observa una proporción considerablemente mayor de animales esterilizados, cercana al 50%, a pesar de que los animales esterilizados representan aproximadamente el 20% de la muestra.
+
+Esto se puede deber a que los animales esterilizados tienen más probalidad de tener un dueño previo. Y que este dueño lo reclame.
+
+
+
+#### Tiempo de estadía
+
+```{r}
+ggplot(refugio, aes(x = los)) +
+  geom_histogram(
+    aes(y = after_stat(density)),
+    bins = 50,
+    fill = "lightblue",
+    color = "white"
+  ) +
+  geom_density(
+    linewidth = 1
+  ) +
+  coord_cartesian(xlim = c(0, 100)) +
+  labs(
+    title = "Distribucion del tiempo de estadia en el refugio",
+    subtitle = "Histograma y curva de densidad",
+    x = "Tiempo de estadia (dias)",
+    y = "Densidad"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold")
+  )
+```
+
+Los días de estadía muestran una distribución con una cola larga hacia la derecha. Y con acumulación en los primeros días
+
+
+```{r}
+ggplot(refugio,
+       aes(x = desenlace,
+           y = los)) +
+  geom_boxplot(
+    fill = "lightblue"
+  ) + 
+  labs (
+    title = "Dias de estadia por desenlace",
+    y = "Tiempo de estadia",
+    x = "Desenlace"
+  )
+```
+Se observa que el desenlace con días de estadía más variado es adopción. Y tambíen el que tiene mediana mayor. Y se observa que la devolución no es tan variada.
+
+
+## 2: Estadística Bayesiana
+
+
+Queremos estimar la tasa de adopción de cada raza. La estimación “obvia” es la tasa
+cruda: adoptados sobre total. Vamos a medir si conviene usar esa tasa o el estimador de
+Empirical Bayes.
+
+Calculamos la "tasa verdadera" de cada raza como su tasa de adopción sobre toda la data (nos quedamos únicamente con raza que tengan al menos 100 animales).
+
+```{r}
+tasa_verdadera <- refugio %>%
+  group_by(breed_main) %>%
+  summarise(
+    n = n(),
+    adoptados = sum(desenlace == "Adopcion")
+  ) %>%
+  filter(n >= 100) %>%
+  mutate(
+    tasa_verdadera = adoptados / n
+  ) %>%
+  arrange(desc(n))
+```
+
+
+```{r}
+head(tasa_verdadera)
+```
+
+Vamos a simular el problema de estimar con poca data para ver como afecta esto. Tomamos una muestra aleatoria chica de cada raza y probamos.
+
+```{r}
+set.seed(123)
+
+muestra <- refugio %>%
+  filter(breed_main %in% tasa_verdadera$breed_main) %>%
+  group_by(breed_main) %>%
+  slice_sample(n = 15)
+
+tasa_cruda <- muestra %>%
+  group_by(breed_main) %>%
+  summarise(
+    adopciones = sum(desenlace == "Adopcion"),
+    tasa_cruda = adopciones / 15
+  )
+
+comparacion <- tasa_verdadera %>%
+  select(breed_main, tasa_verdadera) %>%
+  left_join(tasa_cruda, by = "breed_main")
+```
+
+
+```{r}
+head(comparacion)
+```
+
+Veamos gráficamente las diferencias:
+
+```{r}
+ggplot(comparacion,
+       aes(x = tasa_verdadera,
+           y = tasa_cruda)) +
+  geom_point() +
+  geom_abline(slope = 1,
+              intercept = 0,
+              color = "red")
+```
+
