@@ -1,6 +1,6 @@
 ---
 title: 'Trabajo Práctico 1: Modelado Estadístico'
-author: "Sebastian"
+author: "Sebastian Souto y Santiago Chiquinho"
 date: "`r Sys.Date()`"
 output:
   pdf_document: default
@@ -10,37 +10,35 @@ output:
 ## 1: Exploración Inicial
 
 
-```{r}
+```{r, include = FALSE}
 library(ggplot2)
 library(tidyverse)
 ```
 
 
-Primero cargamos los datos
-
-```{r}
+```{r, include = FALSE}
 refugio <- read_csv("refugio.csv")
 ```
 
+El **Austin Animal Center** es el refugio de animales municipal más grande de Estados Unidos.
+Cada animal que ingresa tiene, eventualmente, un desenlace: puede ser **adoptado, devuelto**
+a su dueño, **transferido** a otra organización, o sufrir **eutanasia/muerte**. El refugio publica
+todos sus registros de ingresos y egresos.
+
+Para este trabajo se utiliará el dataset refugio.csv. Es un dataset (derivado de los registros públicos de data.austintexas.gov) en donde cada fila es un animal (perro o gato), con su tiempo de estadía y su desenlace.
+
+Realizaremos una exploración inicial para conocer los datos:
 
 ### Número de animales:
 
-```{r}
+```{r, echo = FALSE}
 cat("Cantidad de animales:", nrow(refugio))
 ```
 
 ### Distribución de desenlaces:
 
 
-```{r}
-refugio %>%
-  count(desenlace) %>%
-  mutate(
-    porcentaje = round(100 * n / sum(n), 2)
-  )
-```
-
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 refugio %>%
   count(desenlace) %>%
   mutate(
@@ -58,10 +56,13 @@ refugio %>%
   theme_minimal()
 ```
 
+Se puede observar que el desenlace más común en los datos es "Adopción" por amplia mayoría.
 
 ### Summary
 
-```{r}
+Con el comando summary tenemos un resumen de cada columna del dataset.
+
+```{r, echo = FALSE}
 summary(refugio)
 ```
 
@@ -82,24 +83,43 @@ Del summary podemos destacar que:
 
 ### Glimpse
 
-```{r}
+Con el comando glimpse vemos el tipo de datos de cada columna y algunos valores de las columas.
+
+```{r, echo = FALSE}
 glimpse(refugio)
 ```
 
 
 ### Exploración Adicional
 
-
+Realizaremos una exploración un poco más exhaustiva de los datos.
 
 #### Sexo
 
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 refugio %>%
-  count(sexo)
+  count(sexo) %>%
+  ggplot(aes(x = sexo, y = n, fill = sexo)) +
+  geom_col() +
+  geom_text(aes(label = n),
+            vjust = -0.3) +
+  labs(
+    x = "Sexo",
+    y = "Cantidad de animales"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "none"
+  )
 ```
+
+
 Veamos si estas cantidades se mantienen separando por perros y gatos.
 
-```{r}
+
+
+```{r, echo = FALSE}
 refugio %>%
   ggplot(aes(x = sexo,
              fill = factor(dog))) +
@@ -121,7 +141,7 @@ En los gatos hay más hembras que machos. Mientras que en los perros sucede lo c
 #### Edades
 
 
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 ggplot(refugio, aes(x = age_years)) +
   geom_histogram(bins = 30,
                  fill = "steelblue",
@@ -133,10 +153,11 @@ ggplot(refugio, aes(x = age_years)) +
   ) +
   theme_minimal()
 ```
+
 Como habíamos visto en el summary, la mayor parte de los animales son jovenes. Veamos si hay alguna diferencia si separamos entre perros y gatos.
 
 
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 ggplot(refugio,
        aes(x = age_years)) +
   geom_histogram(aes(y = after_stat(density)),
@@ -150,13 +171,14 @@ ggplot(refugio,
   ) +
   theme_minimal()
 ```
+
 En los histogramas divididos por tipo de animal notamos que los gatos tienen mayor concentración en edades que no llegan al año. Más del 70% de los gatos caen en este grupo, mientras que con los perros no sucede lo mismo.
 
 #### Desenlaces según esterilización
 
 
 
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 ggplot(refugio,
        aes(x = desenlace,
            fill = factor(sterilized))) +
@@ -177,7 +199,7 @@ Esto se puede deber a que los animales esterilizados tienen más probalidad de t
 
 #### Tiempo de estadía
 
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 ggplot(refugio, aes(x = los)) +
   geom_histogram(
     aes(y = after_stat(density)),
@@ -204,7 +226,7 @@ ggplot(refugio, aes(x = los)) +
 Los días de estadía muestran una distribución con una cola larga hacia la derecha. Y con acumulación en los primeros días
 
 
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 ggplot(refugio,
        aes(x = desenlace,
            y = los)) +
@@ -229,7 +251,7 @@ Empirical Bayes.
 
 Calculamos la "tasa verdadera" de cada raza como su tasa de adopción sobre toda la data (nos quedamos únicamente con raza que tengan al menos 100 animales).
 
-```{r}
+```{r, echo = FALSE}
 tasa_verdadera <- refugio %>%
   group_by(breed_main) %>%
   summarise(
@@ -244,13 +266,13 @@ tasa_verdadera <- refugio %>%
 ```
 
 
-```{r}
+```{r, echo = FALSE}
 head(tasa_verdadera)
 ```
 
 Vamos a simular el problema de estimar con poca data para ver como afecta esto. Tomamos una muestra aleatoria chica de cada raza y probamos.
 
-```{r}
+```{r, include = FALSE}
 set.seed(123)
 
 muestra <- refugio %>%
@@ -271,13 +293,13 @@ comparacion <- tasa_verdadera %>%
 ```
 
 
-```{r}
+```{r, include = FALSE}
 head(comparacion)
 ```
 
 Veamos gráficamente las diferencias:
 
-```{r}
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
 ggplot(comparacion,
        aes(x = tasa_verdadera,
            y = tasa_cruda)) +
