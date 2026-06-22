@@ -13,6 +13,7 @@ output:
 ```{r, include = FALSE}
 library(ggplot2)
 library(tidyverse)
+library(MASS)
 ```
 
 
@@ -82,7 +83,7 @@ Del summary podemos destacar que:
 
 ## Glimpse
 
-Con el comando glimpse vemos el tipo de datos de cada columna y algunos valores de las columas.
+Con el comando "glimpse()" vemos el tipo de datos de cada columna y algunos valores de las mismas.
 
 ```{r, echo = FALSE, fig.align='center', out.width='60%'}
 glimpse(refugio)
@@ -254,7 +255,7 @@ tasa_verdadera <- refugio %>%
 head(tasa_verdadera)
 ```
 
-Vamos a simular el problema de estimar con poca data para ver como afecta esto. Tomamos una muestra aleatoria chica de cada raza y probamos.
+Vamos a simular el problema de estimar con poca data para ver cómo afecta esto. Tomamos una muestra aleatoria chica de cada raza y probamos.
 
 ```{r, include = FALSE}
 set.seed(123)
@@ -272,7 +273,7 @@ tasa_cruda <- muestra %>%
   )
 
 comparacion <- tasa_verdadera %>%
-  select(breed_main, tasa_verdadera) %>%
+  dplyr::select(breed_main, tasa_verdadera) %>%
   left_join(tasa_cruda, by = "breed_main")
 ```
 
@@ -289,4 +290,131 @@ ggplot(comparacion,
               color = "red")
 ```
 
+<<<<<<< HEAD
 En el gráfico podemos observar, que al tomar muestras más chicas, la estimación varía.
+=======
+### Estimador Empirical Bayes
+
+Para calcular el estimador Empirical Bayes ajustamos una prior Beta sobre las tasas crudas de adopción observadas en las muestras chicas por raza.
+
+Como la distribución Beta está definida en el intervalo abierto entre 0 y 1, primero corregimos levemente las tasas crudas que sean exactamente 0 o exactamente 1. Esto puede pasar porque estamos usando muestras chicas de 15 animales por raza.
+
+```{r, echo = FALSE}
+comparacion <- comparacion %>%
+  mutate(
+    tasa_cruda_ajustada = pmin(pmax(tasa_cruda, 0.001), 0.999)
+  )
+```
+
+Ajustamos la distribución Beta usando máxima verosimilitud:
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+fit_beta <- fitdistr(
+  comparacion$tasa_cruda_ajustada,
+  densfun = "beta",
+  start = list(shape1 = 10, shape2 = 10)
+)
+
+fit_beta
+```
+
+Guardamos los parámetros estimados de la prior:
+
+```{r, echo = FALSE}
+alpha_0 <- fit_beta$estimate["shape1"]
+beta_0 <- fit_beta$estimate["shape2"]
+
+alpha_0
+beta_0
+```
+
+Ahora calculamos el estimador Empirical Bayes. Como tenemos una prior Beta y datos binomiales, la posterior también es Beta. El estimador que usamos es la esperanza a posteriori:
+
+$\hspace{4cm}\hat{p}^{EB}_i = E[p_i \mid \text{datos}_i] = \frac{\alpha_0 + \text{adoptados}_i}{\alpha_0 + \beta_0 + m}$
+
+Armamos el estimador y vemos la nueva comparación.
+
+```{r, echo = FALSE}
+m <- 15
+
+comparacion <- comparacion %>%
+  mutate(
+    tasa_eb = (alpha_0 + adopciones) / (alpha_0 + beta_0 + m)
+  )
+
+head(comparacion)
+```
+
+El estimador Empirical Bayes combina la información observada para cada raza con una prior estimada a partir del comportamiento general de todas las razas. La tasa cruda puede ser muy inestable porque se calcula con solo 15 animales por raza. Por ejemplo, si en una raza se adoptaron muchos animales por azar dentro de esa muestra chica, la tasa cruda puede quedar artificialmente alta. El estimador Empirical Bayes suaviza ese valor, acercándolo parcialmente hacia la distribución general de tasas de adopción entre razas.
+
+### La comparación (métrica)
+
+Con el fin de seleccionar un estimador por sobre el otro, calculamos el ECM de ambos contra la tasa verdadera. La tasa verdadera fue calculada usando toda la base, mientras que la tasa cruda y el estimador Empirical Bayes fueron calculados usando únicamente las muestras chicas de 15 animales por raza.
+
+```{r, echo = FALSE}
+ecm_crudo <- mean((comparacion$tasa_cruda - comparacion$tasa_verdadera)^2)
+
+ecm_eb <- mean((comparacion$tasa_eb - comparacion$tasa_verdadera)^2)
+
+ecm_resultados <- tibble(
+  estimador = c("Tasa cruda", "Empirical Bayes"),
+  ecm = c(ecm_crudo, ecm_eb)
+)
+
+ecm_resultados
+```
+
+Calculamos cuánto mejora EB respecto de la tasa cruda obteniendo:
+
+```{r, echo = FALSE}
+mejora_porcentual <- 100 * (ecm_crudo - ecm_eb) / ecm_crudo
+
+cat('La mejora porcentual es de',round(mejora_porcentual,2),'%')
+
+```
+
+El estimador Empirical Bayes redujo el error cuadrático medio en aproximadamente un 36.84% respecto de la tasa cruda. Esto indica que, en este contexto de muestras chicas por raza, el suavizado bayesiano mejora la estimación de la tasa de adopción. Lo vemos más claramente con el siguiente gráfico.
+
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
+comparacion_larga <- comparacion %>%
+  dplyr::select(breed_main, tasa_verdadera, tasa_cruda, tasa_eb) %>%
+  pivot_longer(
+    cols = c(tasa_cruda, tasa_eb),
+    names_to = "estimador",
+    values_to = "tasa_estimada"
+  ) %>%
+  mutate(
+    estimador = recode(
+      estimador,
+      tasa_cruda = "Tasa cruda",
+      tasa_eb = "Empirical Bayes"
+    )
+  )
+
+ggplot(comparacion_larga,
+       aes(x = tasa_verdadera,
+           y = tasa_estimada,
+           color = estimador)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(
+    slope = 1,
+    intercept = 0,
+    color = "red"
+  ) +
+  labs(
+    title = "Estimaciones de adopción vs tasa verdadera",
+    x = "Tasa verdadera",
+    y = "Tasa estimada",
+    color = "Estimador"
+  ) +
+  theme_minimal()
+```
+
+La línea roja representa el caso ideal, en el que la tasa estimada coincide exactamente con la tasa verdadera. Los puntos más cercanos a esa línea corresponden a mejores estimaciones. Vemos que:
+
+- La tasa cruda presenta mayor variabilidad porque se calcula con solo 15 animales por raza. Por eso, algunas razas pueden quedar con tasas altas o bajas por efecto del azar muestral.
+
+- El estimador Empirical Bayes suaviza esas tasas, combinando la información observada en cada raza con la información general aprendida a partir del conjunto de razas. 
+
+Si su ECM resulta menor, podemos concluir que Empirical Bayes mejora la estimación frente a la tasa cruda en este contexto de poca información por raza.
+
