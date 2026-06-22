@@ -290,9 +290,10 @@ ggplot(comparacion,
               color = "red")
 ```
 
-<<<<<<< HEAD
+
 En el gráfico podemos observar, que al tomar muestras más chicas, la estimación varía.
-=======
+
+
 ### Estimador Empirical Bayes
 
 Para calcular el estimador Empirical Bayes ajustamos una prior Beta sobre las tasas crudas de adopción observadas en las muestras chicas por raza.
