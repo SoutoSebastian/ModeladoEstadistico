@@ -419,3 +419,65 @@ La línea roja representa el caso ideal, en el que la tasa estimada coincide exa
 
 Si su ECM resulta menor, podemos concluir que Empirical Bayes mejora la estimación frente a la tasa cruda en este contexto de poca información por raza.
 
+
+# 3: Modelo Multinomial
+
+Para estos datos, si queremos modelar la probabilidad de los distintos desenlaces, no podemos utilizar una regresión logística binaria porque la variable respuesta tiene más de dos categorías posibles. En su lugar, se puede utilizar un modelo multinomial, que permite estimar la probabilidad de cada desenlace en función de las covariables observadas. Los parámetros del modelo se estiman mediante máxima verosimilitud, suponiendo que la variable respuesta sigue una distribución multinomial. Se fija una categoria de referencia y se modelan las probabilidades de la siguiente manera para cumplir con la reestricción de que las probas sumen 1:
+
+\[
+p_j(x) =
+\frac{\exp(\alpha_j + \beta_j x)}
+{1 + \sum_{l=2}^{K} \exp(\alpha_l + \beta_l x)}
+\]
+
+
+\[
+p_1(x) =
+\frac{1}
+{1 + \sum_{l=2}^{K} \exp(\alpha_l + \beta_l x)}
+\]
+
+1 siendo la categoría de referencia y j cualquier otra categoría
+
+La función de verosimilitud que se maximiza es:
+
+\[
+L(\theta)
+=
+\prod_{i=1}^{n}
+\prod_{j=1}^{K}
+p_j(x_i)^{y_{ij}}
+\]
+
+donde \(y_{ij}\) es una variable indicadora que toma valor 1 si la observación \(i\) pertenece a la categoría \(j\), y 0 en caso contrario.
+
+
+Ajustamos un modelo multinomial de 4 categorías en función de age_years, dog, sterelized y sexo. Con Adopción como referencia.
+
+```{r, include = FALSE}
+#aca fijamos como referencia a la categoria Adopcion
+refugio <- refugio %>%
+  mutate(desenlace = relevel(as.factor(desenlace), ref = "Adopcion"))
+```
+
+```{r, include = FALSE}
+library(nnet)
+
+modelo_mult <- multinom(
+  desenlace ~ age_years + dog + sterilized + sexo,
+  data = refugio
+)
+```
+
+Y obtenemos las siguientes resultados:
+
+```{r, echo = FALSE}
+summary(modelo_mult)
+```
+
+
+Interpretemos lo signos de los coeficientes para Muerte y Devolución:
+
+* Muerte: a mayor edad, aumenta la probabilidad de Muerte sobre Adopción. Lo mismo pasa si el sexo del animal es macho. En cambio, ser perro y estar esterilizado reduce la probabilidad de muerte sobre Adopción.
+
+* Devolución: Ser perro y estar esterilizado aumenta pronunciadamente la probabilidad de Devolución sobre Adopción. Los machos son más propensos a Devolución sobre Adopción. Y a mayor edad, aumenta la probabilidad de Devolución.
