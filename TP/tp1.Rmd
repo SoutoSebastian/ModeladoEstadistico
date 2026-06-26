@@ -346,9 +346,9 @@ comparacion <- comparacion %>%
 head(comparacion)
 ```
 
-El estimador Empirical Bayes combina la información observada para cada raza con una prior estimada a partir del comportamiento general de todas las razas. La tasa cruda puede ser muy inestable porque se calcula con solo 15 animales por raza. Por ejemplo, si en una raza se adoptaron muchos animales por azar dentro de esa muestra chica, la tasa cruda puede quedar artificialmente alta. El estimador Empirical Bayes suaviza ese valor, acercándolo parcialmente hacia la distribución general de tasas de adopción entre razas.
+El estimador Empirical Bayes combina la información observada para cada raza con una prior estimada a partir del comportamiento general de todas las razas. La tasa cruda puede ser muy inestable porque se calcula con solo 15 animales por raza. El estimador suaviza ese valor, acercándolo hacia la distribución general de tasas de adopción entre razas.
 
-### La comparación (métrica)
+## La comparación (métrica)
 
 Con el fin de seleccionar un estimador por sobre el otro, calculamos el ECM de ambos contra la tasa verdadera. La tasa verdadera fue calculada usando toda la base, mientras que la tasa cruda y el estimador Empirical Bayes fueron calculados usando únicamente las muestras chicas de 15 animales por raza.
 
@@ -481,3 +481,157 @@ Interpretemos lo signos de los coeficientes para Muerte y Devolución:
 * Muerte: a mayor edad, aumenta la probabilidad de Muerte sobre Adopción. Lo mismo pasa si el sexo del animal es macho. En cambio, ser perro y estar esterilizado reduce la probabilidad de muerte sobre Adopción.
 
 * Devolución: Ser perro y estar esterilizado aumenta pronunciadamente la probabilidad de Devolución sobre Adopción. Los machos son más propensos a Devolución sobre Adopción. Y a mayor edad, aumenta la probabilidad de Devolución.
+
+# 4 : Análisis de supervivencia
+
+Analizamos ahora qué tan rápido ocurre una adopción. Para este análisis, el evento de interés es la adopción. Los demás desenlaces, es decir transferencia, devolución y muerte, se tratan como censura que significa que, para esos animales, sabemos que no fueron adoptados hasta el momento en que salieron del refugio, pero fue observada una adopción.
+
+```{r, include = FALSE}
+library(survival)
+```
+
+Ahora creamos la variable de evento:
+
+- "1" si ocurrió el evento.
+
+- "0" si el dato está censurado.
+
+```{r, echo = FALSE}
+refugio_surv <- refugio %>%
+  mutate(
+    evento_adopcion = if_else(desenlace == "Adopcion", 1, 0)
+  )
+```
+
+Ajustamos una curva de Kaplan-Meier para estimar la función de supervivencia $\hat{S}(t)$ que, en este contexto, representa la probabilidad estimada de que un animal siga sin ser adoptado luego de $t$ días en el refugio.
+
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
+km_adopcion <- survfit(
+  Surv(time = los, event = evento_adopcion) ~ 1,
+  data = refugio_surv
+)
+
+plot(
+  km_adopcion,
+  xlab = "Días en el refugio",
+  ylab = "Probabilidad de no haber sido adoptado",
+  main = "Curva de Kaplan-Meier: tiempo hasta adopción",
+  conf.int = FALSE
+)
+```
+
+La curva anterior muestra la probabilidad estimada de que el animal continúe sin ser adoptado a medida que pasan los días. Como el enunciado pide reportar la probabilidad de adopción estimada, calculamos el complemento de la supervivencia: $1 - \hat{S}(t)$
+
+Este valor puede interpretarse como la probabilidad acumulada estimada de que un animal haya sido adoptado hasta el día $t$.
+
+```{r, echo = FALSE}
+tiempos <- c(30, 60, 90, 180)
+
+resumen_km <- summary(km_adopcion, times = tiempos)
+
+prob_adopcion <- tibble(
+  dias = resumen_km$time,
+  probabilidad_no_adopcion = resumen_km$surv,
+  probabilidad_adopcion = 1 - resumen_km$surv
+) %>%
+  mutate(
+    probabilidad_no_adopcion = round(100 * probabilidad_no_adopcion, 2),
+    probabilidad_adopcion = round(100 * probabilidad_adopcion, 2)
+  )
+
+prob_adopcion
+```
+En términos generales, la curva permite observar cómo aumenta la probabilidad acumulada de adopción a medida que transcurre el tiempo en el refugio. Los animales que tuvieron otros desenlaces aportan información hasta el momento en que salieron del refugio, pero luego se consideran censurados porque no se observa el evento de adopción.
+
+## Modelo de cox
+
+Ajustaremos ahora un modelo de Cox para determinar otras variables asociadas con la rapidez de adopción de un animal. Este modelo permite estudiar cómo cambian las chances de adopción en función de las características del animal. De esta forma, un coeficiente positivo indica una adopción más rápida. Por el contrario, un coeficiente negativo indica una menor una adopción más lenta. El hazard ratio se interpreta en relación con el tiempo hasta adopción. Un valor mayor a 1 indica que la variable está asociada con adopciones más rápidas. Un valor menor a 1 indica adopciones más lentas.
+
+Se utilizarán variable como "age_years", "dog", "sterilized" y "sexo". Estas variables fueron seleccionadas porque describen características observables del animal al momento de ingresar al refugio y permiten evaluar diferencias en la velocidad de adopción. No se incluyó "los", ya que es la variable de tiempo del modelo, ni "desenlace", porque se utiliza para definir el evento de adopción o la censura. Tampoco se incluyó "breed_main" en este modelo debido a la gran cantidad de categorías, lo que dificultaría la interpretación y podría generar estimaciones inestables para razas con pocos casos. 
+
+```{r, echo = FALSE}
+modelo_cox <- coxph(
+  Surv(time = los, event = evento_adopcion) ~ age_years + dog + sterilized + sexo,
+  data = refugio_surv
+)
+
+
+resumen_cox <- summary(modelo_cox)
+
+tabla_cox <- tibble(
+  variable = rownames(resumen_cox$coefficients),
+  coeficiente = resumen_cox$coefficients[, "coef"],
+  hazard_ratio = resumen_cox$coefficients[, "exp(coef)"],
+  p_value = resumen_cox$coefficients[, "Pr(>|z|)"]
+) %>%
+  mutate(
+    coeficiente = round(coeficiente, 4),
+    hazard_ratio = round(hazard_ratio, 4),
+    p_value = if_else(p_value < 0.001, "<0.001", as.character(round(p_value, 4)))
+  )
+
+tabla_cox
+```
+
+En base a los resultados se observa que las sig:
+ 
+-observamos que la edad está asociada con tiempos de adopción más lentos. El hazard ratio de age_years es 0.9083, menor a 1, lo que indica que los animales de mayor edad presentan una menor tasa instantánea de adopción.
+
+-La variable "dog" tiene un hazard ratio de 1.3895. Esto indica que, controlando por edad, esterilización y sexo, los perros tienen una mayor tasa instantánea de adopción que los gatos.
+
+-La variable "sterilized" tiene un hazard ratio de 1.0893, por lo que estar esterilizado al ingresar se asocia con una adopción algo más rápida.
+
+-Finalmente, "sexoMacho" tiene un hazard ratio de 0.9471. Al ser menor a 1, sugiere que los machos presentan una tasa instantánea de adopción ligeramente menor que las hembras, es decir, una adopción algo más lenta.
+
+
+```{r, echo = FALSE, fig.align='center', out.width='100%', fig.width=12, fig.height=5}
+km_sterilized <- survfit(
+  Surv(time = los, event = evento_adopcion) ~ sterilized,
+  data = refugio_surv
+)
+
+km_animal <- survfit(
+  Surv(time = los, event = evento_adopcion) ~ animal_type,
+  data = refugio_surv
+)
+
+par(mfrow = c(1, 2))
+
+plot(
+  km_sterilized,
+  col = c("steelblue", "tomato"),
+  xlab = "Días en el refugio",
+  ylab = "Probabilidad de no haber sido adoptado",
+  main = "Según esterilización",
+  conf.int = FALSE
+)
+
+legend(
+  "topright",
+  legend = c("No esterilizado", "Esterilizado"),
+  col = c("steelblue", "tomato"),
+  lty = 1,
+  cex = 0.8
+)
+
+plot(
+  km_animal,
+  col = c("steelblue", "tomato"),
+  xlab = "Días en el refugio",
+  ylab = "Probabilidad de no haber sido adoptado",
+  main = "Según tipo de animal",
+  conf.int = FALSE
+)
+
+legend(
+  "topright",
+  legend = levels(factor(refugio_surv$animal_type)),
+  col = c("steelblue", "tomato"),
+  lty = 1,
+  cex = 0.8
+)
+
+par(mfrow = c(1, 1))
+```
+
+En conjunto, los resultados sugieren que los animales más jóvenes, perros, esterilizados y hembras tienden a presentar tiempos de adopción más rápidos. Por el contrario, los animales de mayor edad, gatos, no esterilizados y machos tienden a permanecer más tiempo sin ser adoptados.
