@@ -14,6 +14,7 @@ output:
 library(ggplot2)
 library(tidyverse)
 library(MASS)
+library(kableExtra)
 ```
 
 
@@ -32,9 +33,12 @@ Realizaremos una exploración inicial para conocer los datos:
 
 ## Número de animales:
 
-```{r, echo = FALSE}
-cat("Cantidad de animales:", nrow(refugio))
+```{r, include = FALSE}
+cant_animales <- nrow(refugio)
 ```
+
+Tenemos datos de `r cant_animales` animales.
+
 
 ## Distribución de desenlaces:
 
@@ -236,7 +240,7 @@ Empirical Bayes.
 
 Calculamos la "tasa verdadera" de cada raza como su tasa de adopción sobre toda la data (nos quedamos únicamente con raza que tengan al menos 100 animales).
 
-```{r, echo = FALSE, , fig.align='center', out.width='60%'}
+```{r, include = FALSE,  fig.align='center', out.width='60%'}
 tasa_verdadera <- refugio %>%
   group_by(breed_main) %>%
   summarise(
@@ -252,8 +256,24 @@ tasa_verdadera <- refugio %>%
 
 
 ```{r, echo = FALSE}
-head(tasa_verdadera)
+head(tasa_verdadera) %>%
+  rename(
+    Raza = breed_main,
+    Total = n,
+    Adoptados = adoptados,
+    `Tasa verdadera` = tasa_verdadera
+  ) %>%
+  kable(
+    caption = "Tasa verdadera de adopción por raza",
+    digits = 3,
+    booktabs = TRUE
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center"
+  )
 ```
+
 
 Vamos a simular el problema de estimar con poca data para ver cómo afecta esto. Tomamos una muestra aleatoria chica de cada raza y probamos.
 
@@ -307,7 +327,7 @@ comparacion <- comparacion %>%
   )
 ```
 
-Ajustamos la distribución Beta usando máxima verosimilitud:
+Luego ajustamos la distribución Beta usando máxima verosimilitud sobre las tasas de adopción ajustadas. 
 
 ```{r, echo = FALSE, warning = FALSE, message = FALSE}
 fit_beta <- fitdistr(
@@ -316,26 +336,30 @@ fit_beta <- fitdistr(
   start = list(shape1 = 10, shape2 = 10)
 )
 
-fit_beta
-```
-
-Guardamos los parámetros estimados de la prior:
-
-```{r, echo = FALSE}
 alpha_0 <- fit_beta$estimate["shape1"]
 beta_0 <- fit_beta$estimate["shape2"]
-
-alpha_0
-beta_0
 ```
 
-Ahora calculamos el estimador Empirical Bayes. Como tenemos una prior Beta y datos binomiales, la posterior también es Beta. El estimador que usamos es la esperanza a posteriori:
+Los parámetros estimados fueron:
 
-$\hspace{4cm}\hat{p}^{EB}_i = E[p_i \mid \text{datos}_i] = \frac{\alpha_0 + \text{adoptados}_i}{\alpha_0 + \beta_0 + m}$
+- \(\alpha_0 =\) `r round(alpha_0, 3)`
+- \(\beta_0 =\) `r round(beta_0, 3)`
 
-Armamos el estimador y vemos la nueva comparación.
+Estos parámetros se utilizarán para definir la distribución **a priori** de la tasa de adopción de cada raza.
 
-```{r, echo = FALSE}
+
+A continuación, calculamos el estimador Empirical Bayes para la tasa de adopción de cada raza. Dado que se asume una distribución Beta como prior y que el número de adopciones sigue una distribución Binomial, la distribución posterior es una Beta. Como estimador utilizamos la esperanza de la distribución posterior, dada por:
+
+\vspace{0.5cm}
+
+\[
+\hat{p}^{EB}_i = E[p_i \mid \text{datos}_i] = \frac{\alpha_0 + \text{adoptados}_i}{\alpha_0 + \beta_0 + m}
+\]
+
+Calculamos el estimador para cada raza y observamos la comparación.
+
+
+```{r, include = FALSE}
 m <- 15
 
 comparacion <- comparacion %>%
@@ -343,8 +367,37 @@ comparacion <- comparacion %>%
     tasa_eb = (alpha_0 + adopciones) / (alpha_0 + beta_0 + m)
   )
 
-head(comparacion)
 ```
+
+
+```{r, echo = FALSE}
+head(comparacion) %>%
+  dplyr::select(
+    breed_main,
+    adopciones,
+    tasa_cruda,
+    tasa_eb,
+    tasa_verdadera
+  ) %>%
+  rename(
+    Raza = breed_main,
+    `Adopciones (m=15)` = adopciones,
+    `Tasa cruda` = tasa_cruda,
+    `Empirical Bayes` = tasa_eb,
+    `Tasa verdadera` = tasa_verdadera
+  ) %>%
+  mutate(
+    `Tasa cruda` = round(`Tasa cruda`, 3),
+    `Empirical Bayes` = round(`Empirical Bayes`, 3),
+    `Tasa verdadera` = round(`Tasa verdadera`, 3)
+  ) %>%
+  kable(
+    caption = "Comparación de tasas: cruda, Empirical Bayes y verdadera",
+    booktabs = TRUE,
+    align = c("l", "c", "c", "c", "c")
+  )
+```
+
 
 El estimador Empirical Bayes combina la información observada para cada raza con una prior estimada a partir del comportamiento general de todas las razas. La tasa cruda puede ser muy inestable porque se calcula con solo 15 animales por raza. Por ejemplo, si en una raza se adoptaron muchos animales por azar dentro de esa muestra chica, la tasa cruda puede quedar artificialmente alta. El estimador Empirical Bayes suaviza ese valor, acercándolo parcialmente hacia la distribución general de tasas de adopción entre razas.
 
@@ -352,7 +405,7 @@ El estimador Empirical Bayes combina la información observada para cada raza co
 
 Con el fin de seleccionar un estimador por sobre el otro, calculamos el ECM de ambos contra la tasa verdadera. La tasa verdadera fue calculada usando toda la base, mientras que la tasa cruda y el estimador Empirical Bayes fueron calculados usando únicamente las muestras chicas de 15 animales por raza.
 
-```{r, echo = FALSE}
+```{r, include = FALSE}
 ecm_crudo <- mean((comparacion$tasa_cruda - comparacion$tasa_verdadera)^2)
 
 ecm_eb <- mean((comparacion$tasa_eb - comparacion$tasa_verdadera)^2)
@@ -362,17 +415,36 @@ ecm_resultados <- tibble(
   ecm = c(ecm_crudo, ecm_eb)
 )
 
-ecm_resultados
 ```
 
-Calculamos cuánto mejora EB respecto de la tasa cruda obteniendo:
-
 ```{r, echo = FALSE}
+ecm_resultados %>%
+  mutate(ecm = round(ecm, 6)) %>%
+  rename(
+    Estimador = estimador,
+    `Error cuadrático medio` = ecm
+  ) %>%
+  kable(
+    caption = "Comparación del ECM entre estimadores",
+    booktabs = TRUE,
+    align = c("c", "c")
+  ) %>%
+  kable_styling(
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+
+
+```{r, include = FALSE}
 mejora_porcentual <- 100 * (ecm_crudo - ecm_eb) / ecm_crudo
 
 cat('La mejora porcentual es de',round(mejora_porcentual,2),'%')
 
 ```
+
+La mejora porcentual del Empirical Bayes respecto de la tasa cruda es de : `r round(mejora_porcentual,2)`%.
 
 El estimador Empirical Bayes redujo el error cuadrático medio en aproximadamente un 36.84% respecto de la tasa cruda. Esto indica que, en este contexto de muestras chicas por raza, el suavizado bayesiano mejora la estimación de la tasa de adopción. Lo vemos más claramente con el siguiente gráfico.
 
@@ -472,7 +544,24 @@ modelo_mult <- multinom(
 Y obtenemos las siguientes resultados:
 
 ```{r, echo = FALSE}
-summary(modelo_mult)
+coefs <- summary(modelo_mult)$coefficients
+ses   <- summary(modelo_mult)$standard.errors
+
+kable(
+  round(coefs, 4),
+  caption = "Coeficientes del modelo multinomial",
+  booktabs = TRUE
+) %>%
+  kable_styling(full_width = FALSE)
+
+
+kable(
+  round(ses, 4),
+  caption = "Errores estándar del modelo multinomial",
+  booktabs = TRUE
+) %>%
+  kable_styling(full_width = FALSE)
+
 ```
 
 
