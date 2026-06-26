@@ -15,6 +15,7 @@ library(ggplot2)
 library(tidyverse)
 library(MASS)
 library(kableExtra)
+library(survminer)
 ```
 
 
@@ -66,7 +67,7 @@ Se puede observar que el desenlace más común en los datos es "Adopción" por a
 
 Con el comando summary tenemos un resumen de cada columna del dataset.
 
-```{r, echo = FALSE, fig.align='center', out.width='60%'}
+```{r, echo = FALSE, fig.align='center', out.width='50%'}
 summary(refugio)
 ```
 
@@ -89,16 +90,12 @@ Del summary podemos destacar que:
 
 Con el comando "glimpse()" vemos el tipo de datos de cada columna y algunos valores de las mismas.
 
-```{r, echo = FALSE, fig.align='center', out.width='60%'}
+```{r, echo = FALSE, fig.align='center', out.width='50%'}
 glimpse(refugio)
 ```
 
 
-## Exploración Adicional
-
-Realizaremos una exploración un poco más exhaustiva de los datos.
-
-### Sexo
+## Sexo
 
 ```{r, echo = FALSE, fig.align='center', out.width='60%'}
 refugio %>%
@@ -142,7 +139,7 @@ refugio %>%
 ```
 En los gatos hay más hembras que machos. Mientras que en los perros sucede lo contrario.
 
-### Edades
+## Edades
 
 Como habíamos visto en el summary, la mayor parte de los animales son jovenes. Veamos si hay alguna diferencia si separamos entre perros y gatos.
 
@@ -164,7 +161,7 @@ ggplot(refugio,
 
 En los histogramas divididos por tipo de animal notamos que los gatos tienen mayor concentración en edades que no llegan al año. Más del 70% de los gatos caen en este grupo, mientras que con los perros no sucede lo mismo.
 
-### Desenlaces según esterilización
+## Desenlaces según esterilización
 
 
 ```{r, echo = FALSE, fig.align='center', out.width='60%'}
@@ -186,7 +183,7 @@ Esto se puede deber a que los animales esterilizados tienen más probalidad de t
 
 
 
-### Tiempo de estadía
+## Tiempo de estadía
 
 ```{r, echo = FALSE, fig.align='center', out.width='60%'}
 ggplot(refugio, aes(x = los)) +
@@ -214,21 +211,6 @@ ggplot(refugio, aes(x = los)) +
 
 Los días de estadía muestran una distribución con una cola larga hacia la derecha. Y con acumulación en los primeros días
 
-
-```{r, echo = FALSE, fig.align='center', out.width='60%'}
-ggplot(refugio,
-       aes(x = desenlace,
-           y = los)) +
-  geom_boxplot(
-    fill = "lightblue"
-  ) + 
-  labs (
-    title = "Dias de estadia por desenlace",
-    y = "Tiempo de estadia",
-    x = "Desenlace"
-  )
-```
-Se observa que el desenlace con días de estadía más variado es adopción. Y tambíen el que tiene mediana mayor. Y se observa que la devolución no es tan variada.
 
 
 # 2: Estadística Bayesiana
@@ -264,7 +246,7 @@ head(tasa_verdadera) %>%
     `Tasa verdadera` = tasa_verdadera
   ) %>%
   kable(
-    caption = "Tasa verdadera de adopción por raza",
+    caption = "Tasa verdadera de adopción por raza (Head)",
     digits = 3,
     booktabs = TRUE
   ) %>%
@@ -275,7 +257,7 @@ head(tasa_verdadera) %>%
 ```
 
 
-Vamos a simular el problema de estimar con poca data para ver cómo afecta esto. Tomamos una muestra aleatoria chica de cada raza y probamos.
+Vamos a simular el problema de estimar con poca data para ver cómo afecta esto. Tomamos una muestra aleatoria de 15 datos para cada raza y realizamos la estimación de la tasa cruda: $adoptados / 15$.
 
 ```{r, include = FALSE}
 set.seed(123)
@@ -345,10 +327,10 @@ Los parámetros estimados fueron:
 - \(\alpha_0 =\) `r round(alpha_0, 3)`
 - \(\beta_0 =\) `r round(beta_0, 3)`
 
-Estos parámetros se utilizarán para definir la distribución **a priori** de la tasa de adopción de cada raza.
+Estos parámetros se utilizan para definir la distribución **a priori** de la tasa de adopción de cada raza.
 
 
-A continuación, calculamos el estimador Empirical Bayes para la tasa de adopción de cada raza. Dado que se asume una distribución Beta como prior y que el número de adopciones sigue una distribución Binomial, la distribución posterior es una Beta. Como estimador utilizamos la esperanza de la distribución posterior, dada por:
+A continuación, calculamos el estimador Empirical Bayes para la tasa de adopción de cada raza. Dado que se asume una distribución Beta como prior y que el número de adopciones sigue una distribución Binomial, la distribución a posteriori es una Beta. Como estimador utilizamos la esperanza de la distribución a posteriori, dada por:
 
 \vspace{0.5cm}
 
@@ -369,7 +351,7 @@ comparacion <- comparacion %>%
 
 ```
 
-<<<<<<< HEAD
+
 
 ```{r, echo = FALSE}
 head(comparacion) %>%
@@ -393,7 +375,7 @@ head(comparacion) %>%
     `Tasa verdadera` = round(`Tasa verdadera`, 3)
   ) %>%
   kable(
-    caption = "Comparación de tasas: cruda, Empirical Bayes y verdadera",
+    caption = "Comparación de tasas (Head)",
     booktabs = TRUE,
     align = c("l", "c", "c", "c", "c")
   )
@@ -406,6 +388,7 @@ El estimador Empirical Bayes combina la información observada para cada raza co
 ## La comparación (métrica)
 
 Con el fin de seleccionar un estimador por sobre el otro, calculamos el ECM de ambos contra la tasa verdadera. La tasa verdadera fue calculada usando toda la base, mientras que la tasa cruda y el estimador Empirical Bayes fueron calculados usando únicamente las muestras chicas de 15 animales por raza.
+
 
 ```{r, include = FALSE}
 ecm_crudo <- mean((comparacion$tasa_cruda - comparacion$tasa_verdadera)^2)
@@ -448,7 +431,7 @@ cat('La mejora porcentual es de',round(mejora_porcentual,2),'%')
 
 La mejora porcentual del Empirical Bayes respecto de la tasa cruda es de : `r round(mejora_porcentual,2)`%.
 
-El estimador Empirical Bayes redujo el error cuadrático medio en aproximadamente un 36.84% respecto de la tasa cruda. Esto indica que, en este contexto de muestras chicas por raza, el suavizado bayesiano mejora la estimación de la tasa de adopción. Lo vemos más claramente con el siguiente gráfico.
+Esto indica que, en este contexto de muestras chicas por raza, el suavizado bayesiano mejora la estimación de la tasa de adopción. Lo vemos más claramente con el siguiente gráfico.
 
 ```{r, echo = FALSE, fig.align='center', out.width='80%'}
 comparacion_larga <- comparacion %>%
@@ -511,7 +494,7 @@ p_1(x) =
 {1 + \sum_{l=2}^{K} \exp(\alpha_l + \beta_l x)}
 \]
 
-1 siendo la categoría de referencia y j cualquier otra categoría
+1 siendo la categoría de referencia, j cualquier otra categoría, $\alpha$ y $\beta$ los parámetros a estimar y $x$ las covariables.
 
 La función de verosimilitud que se maximiza es:
 
@@ -543,7 +526,7 @@ modelo_mult <- multinom(
 )
 ```
 
-Y obtenemos las siguientes resultados:
+Y obtenemos los siguientes resultados:
 
 ```{r, echo = FALSE}
 coefs <- summary(modelo_mult)$coefficients
@@ -596,42 +579,61 @@ refugio_surv <- refugio %>%
 
 Ajustamos una curva de Kaplan-Meier para estimar la función de supervivencia $\hat{S}(t)$ que, en este contexto, representa la probabilidad estimada de que un animal siga sin ser adoptado luego de $t$ días en el refugio.
 
-```{r, echo = FALSE, fig.align='center', out.width='80%'}
+```{r, include = FALSE}
 km_adopcion <- survfit(
   Surv(time = los, event = evento_adopcion) ~ 1,
   data = refugio_surv
 )
 
-plot(
+```
+
+```{r, echo = FALSE, fig.align='center', out.width='70%'}
+ggsurvplot(
   km_adopcion,
-  xlab = "Días en el refugio",
+  data = refugio_surv,
+  conf.int = FALSE,
+  risk.table = FALSE,
+  xlab = "Tiempo en el refugio (días)",
   ylab = "Probabilidad de no haber sido adoptado",
-  main = "Curva de Kaplan-Meier: tiempo hasta adopción",
-  conf.int = FALSE
+  title = "Curva de Kaplan-Meier para el tiempo hasta la adopción",
+  ggtheme = theme_minimal(),
+  palette = "#2C7FB8",
+  break.time.by = 20
 )
 ```
+
 
 La curva anterior muestra la probabilidad estimada de que el animal continúe sin ser adoptado a medida que pasan los días. Como el enunciado pide reportar la probabilidad de adopción estimada, calculamos el complemento de la supervivencia: $1 - \hat{S}(t)$
 
 Este valor puede interpretarse como la probabilidad acumulada estimada de que un animal haya sido adoptado hasta el día $t$.
 
-```{r, echo = FALSE}
+```{r, include = FALSE}
 tiempos <- c(30, 60, 90, 180)
 
 resumen_km <- summary(km_adopcion, times = tiempos)
 
 prob_adopcion <- tibble(
   dias = resumen_km$time,
-  probabilidad_no_adopcion = resumen_km$surv,
-  probabilidad_adopcion = 1 - resumen_km$surv
-) %>%
-  mutate(
-    probabilidad_no_adopcion = round(100 * probabilidad_no_adopcion, 2),
-    probabilidad_adopcion = round(100 * probabilidad_adopcion, 2)
-  )
+  probabilidad_no_adopcion = round(resumen_km$surv, 3),
+  probabilidad_adopcion = round(1 - resumen_km$surv, 3)
+)
 
-prob_adopcion
 ```
+
+```{r, echo = FALSE}
+prob_adopcion %>%
+  rename(
+    `Días` = dias,
+    `P(No adopción)` = probabilidad_no_adopcion,
+    `P(Adopción)` = probabilidad_adopcion
+  ) %>%
+  kable(
+    caption = "Probabilidades estimadas de adopción mediante Kaplan-Meier",
+    align = "c",
+    booktabs = TRUE
+  )
+```
+
 En términos generales, la curva permite observar cómo aumenta la probabilidad acumulada de adopción a medida que transcurre el tiempo en el refugio. Los animales que tuvieron otros desenlaces aportan información hasta el momento en que salieron del refugio, pero luego se consideran censurados porque no se observa el evento de adopción.
 
 ## Modelo de cox
@@ -640,7 +642,7 @@ Ajustaremos ahora un modelo de Cox para determinar otras variables asociadas con
 
 Se utilizarán variable como "age_years", "dog", "sterilized" y "sexo". Estas variables fueron seleccionadas porque describen características observables del animal al momento de ingresar al refugio y permiten evaluar diferencias en la velocidad de adopción. No se incluyó "los", ya que es la variable de tiempo del modelo, ni "desenlace", porque se utiliza para definir el evento de adopción o la censura. Tampoco se incluyó "breed_main" en este modelo debido a la gran cantidad de categorías, lo que dificultaría la interpretación y podría generar estimaciones inestables para razas con pocos casos. 
 
-```{r, echo = FALSE}
+```{r, include = FALSE}
 modelo_cox <- coxph(
   Surv(time = los, event = evento_adopcion) ~ age_years + dog + sterilized + sexo,
   data = refugio_surv
@@ -661,8 +663,23 @@ tabla_cox <- tibble(
     p_value = if_else(p_value < 0.001, "<0.001", as.character(round(p_value, 4)))
   )
 
-tabla_cox
 ```
+
+```{r, echo = FALSE}
+tabla_cox %>%
+  rename(
+    Variable = variable,
+    Coeficiente = coeficiente,
+    `Hazard Ratio` = hazard_ratio,
+    `P Value` = p_value
+  ) %>%
+  kable(
+    caption = "Resultados del modelo de riesgos proporcionales de Cox",
+    align = c("l", "c", "c", "c"),
+    booktabs = TRUE
+  )
+```
+
 
 En base a los resultados se observa que las sig:
  
