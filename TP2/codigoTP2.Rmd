@@ -1,0 +1,274 @@
+---
+title: 'Trabajo Práctico 2: Modelado Estadístico'
+author: "Sebastian Souto"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# 1: Exploración Inicial:
+
+```{r, include = FALSE}
+#paquetes
+library(ggplot2)
+library(tidyverse)
+library(MASS)
+library(kableExtra)
+```
+
+```{r, include = FALSE}
+titles_train <- read_csv("titles_train.csv")
+credits_train <- read_csv("credits_train.csv")
+```
+
+
+### Relación entre género y puntaje:
+
+Primero agrupamos las películas por género y luego calculamos la media, mediana y desvío de las puntuaciones para cada género. 
+
+```{r, echo = FALSE}
+
+#Hay algunas peliculas que tienen dos generos, entonces dividimos eso. 
+genres_df <- titles_train %>%
+  mutate(
+    genres = str_remove_all(genres, "\\[|\\]|'")
+  ) %>%
+  separate_rows(genres, sep = ",\\s*")
+
+#Luego calculamos la media, mediana y desvío por género. Y lo mostramos lindo
+genres_df %>%
+  group_by(genres) %>%
+  summarise(
+    Cantidad = n(),
+    Media = mean(imdb_score, na.rm = TRUE),
+    Mediana = median(imdb_score, na.rm = TRUE),
+    `Desvío estándar` = sd(imdb_score, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Media)) %>%
+  mutate(
+    across(c(Media, Mediana, `Desvío estándar`), ~ round(.x, 2))
+  ) %>%
+  kable(
+    caption = "Estadísticos descriptivos del puntaje IMDb por género",
+    booktabs = TRUE,
+    align = c("l", "c", "c", "c", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+Podemos observar que para géneros como $War$ o $History$ la media es mayor a la de los demás géneros. Lo mismo sucede con la mediana. Mientras tanto el género que peor puntaje medio tiene es $Horror$. Tambíen podemos observar que en el dataset hay 6 películas que no tienen género.
+
+Analicemos graficamente esta información:
+
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
+
+genres_df %>%
+  ggplot(aes(x = reorder(genres, imdb_score, median), y = imdb_score)) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(
+    x = "Género",
+    y = "IMDb score",
+    title = "Distribución del puntaje IMDb por género"
+  )
+```
+
+
+Existe un importante solapamiento entre las distribuciones, por lo que el género por sí solo no parece explicar completamente el puntaje del título. Sin embargo podemos destacar que hay generos que presentan más variabilidad que otros, por ejemplo "drama" es un género con gran variabilidad.
+
+### Actores y Directores
+
+Observemos si hay actores y directores que tengan mejores valoraciones que los demás.
+
+```{r, echo = FALSE}
+
+# Primero hacemos un left join para juntar actores/directores con puntuacion
+
+datos <- credits_train %>%
+  left_join(
+    titles_train %>% dplyr::select(id, imdb_score),
+    by = "id"
+  )
+
+
+```
+
+
+```{r, echo = FALSE}
+#Ahora separamos por actores y directores
+
+actores <- datos %>%
+  filter(role == "ACTOR") %>%
+  group_by(name) %>%
+  summarise(
+    Cantidad = n(),
+    `IMDb_promedio` = mean(imdb_score, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Cantidad >= 5) %>%
+  arrange(desc(`IMDb_promedio`))
+
+head(actores) %>%
+  mutate(
+    `IMDb_promedio` = round(`IMDb_promedio`, 2)
+  ) %>%
+  kable(
+    caption = "Actores con mayor puntaje promedio de IMDb (mínimo 5 títulos)",
+    booktabs = TRUE,
+    align = c("l", "c", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+```{r, echo = FALSE}
+directores <- datos %>%
+  filter(role == "DIRECTOR") %>%
+  group_by(name) %>%
+  summarise(
+    Cantidad = n(),
+    `IMDb_promedio` = mean(imdb_score, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  filter(Cantidad >= 3) %>%
+  arrange(desc(`IMDb_promedio`))
+
+head(directores) %>%
+  mutate(
+    `IMDb_promedio` = round(`IMDb_promedio`, 2)
+  ) %>%
+  kable(
+    caption = "Directores con mayor puntaje promedio de IMDb (mínimo 3 títulos)",
+    booktabs = TRUE,
+    align = c("l", "c", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+
+```
+
+Veamos los mejores y los peores actores:
+
+```{r, echo = FALSE, fig.align='center', out.width='80%'}
+
+top_bottom <- bind_rows(
+  actores %>% slice_max(IMDb_promedio, n = 5),
+  actores %>% slice_min(IMDb_promedio, n = 5)
+)
+
+ggplot(top_bottom,
+       aes(x = reorder(name, IMDb_promedio), y = IMDb_promedio)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    x = "Actor",
+    y = "IMDb promedio",
+    title = "Cinco actores con mayor y menor puntaje promedio"
+  )
+```
+
+En las tablas y el gráfico mostrado, se puede observar que hay ciertos directores y actores que tienen mejor puntuación en sus películas. Mientras que otros tienen menor puntuación.
+
+# 2: Causalidad
+
+Dado el DAG presentado en el enunciado queremos estimar el efecto causal directo de Comedia sobre Score. Para ello debemos identificar todos los caminos entre Comedia y Score. Luego construir un conjunto $Z$ de nodos que bloquee todos los caminos encontrados. 
+
+- Camino 1: Comedia $\leftarrow$ País $\rightarrow$ Score
+
+Para bloquear este camino hay que agregar País a $Z$, ya que País es un confounder. Y es la única manera de bloquearlo.
+
+- Camino 2: Comedia $\rightarrow$ Duración $\rightarrow$ Score
+
+Para bloquear este camino hay que agregar Duración a $Z$, ya que Duración está en una cadena entre los nodos de interés. Y es la única manera de bloquearlo.
+
+- Camino 3: Comedia $\rightarrow$ Duración $\leftarrow$ Año $\rightarrow$ Score
+
+Notemos que Duración es un collider, una opción para bloquear este camino sería no agregar Duración pero esto no es posible ya que se abriría el camino 2. Por lo tanto, la única manera de bloquear este camino, es agregando Año, que en este camino juega un rol de confounder. 
+
+Finalmente, el único conjunto $Z$ que d-separa a Comedia y Score es:
+
+\[
+\{Año, Duración, País\}
+\]
+
+
+Vamos a estimar el efecto causal directo, utilizando el conjunto $Z$ y también realizaremos la estimación cruda. Para ello implementamos los respectivos modelos lineales.
+
+```{r, include = FALSE}
+#creamos una variable binaria para comedy.
+
+titles_train <- titles_train %>%
+  mutate(
+    comedia = as.integer(stringr::str_detect(genres, "comedy"))
+  )
+```
+
+
+```{r, include=FALSE}
+
+modelo_crudo <- lm(imdb_score ~ comedia,
+                   data = titles_train)
+
+summary(modelo_crudo)
+```
+
+
+```{r, include=FALSE}
+#Tomamos unicamente el primer pais.
+
+titles_train <- titles_train %>%
+  mutate(
+    pais = production_countries |>
+      stringr::str_remove_all("\\[|\\]|'") |>
+      stringr::str_split(",\\s*") |>
+      sapply(`[`, 1)
+  )
+
+modelo_directo <- lm(
+  imdb_score ~ comedia +
+    runtime +
+    release_year +
+    pais,
+  data = titles_train
+)
+
+summary(modelo_directo)
+```
+
+
+Obteniendo los siguientes resultados:
+
+```{r, echo = FALSE}
+comparacion <- data.frame(
+  Modelo = c("Crudo", "Ajustado"),
+  `Coeficiente_Comedia` = c(
+    coef(modelo_crudo)["comedia"],
+    coef(modelo_directo)["comedia"]
+  )
+) %>%
+  mutate(
+    `Coeficiente_Comedia` = round(`Coeficiente_Comedia`, 3)
+  )
+
+comparacion %>%
+  kable(
+    caption = "Comparación del coeficiente asociado a la variable Comedia",
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
