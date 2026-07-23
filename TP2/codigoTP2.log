@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.7.14)  23 JUL 2026 13:36
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.7.14)  23 JUL 2026 14:22
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -559,28 +559,28 @@ LaTeX Warning: Command \' invalid in math mode on input line 227.
 LaTeX Warning: Command \' invalid in math mode on input line 227.
 
 [3{c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}{c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc} <./codigoTP2_files/figure-latex/unnamed-chunk-8-1.pdf>]
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 290.
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 278.
 (c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-) [4{c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}] [5] (./codigoTP2.aux)
+) [4{c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}] [5] [6] (./codigoTP2.aux)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-06-18>
  ***********
  ) 
 Here is how much of TeX's memory you used:
- 12874 strings out of 469158
- 203100 string characters out of 5458100
- 643407 words of memory out of 5000000
- 41638 multiletter control sequences out of 15000+600000
+ 12890 strings out of 469158
+ 203260 string characters out of 5458100
+ 643595 words of memory out of 5000000
+ 41648 multiletter control sequences out of 15000+600000
  659525 words of font info for 66 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
  88i,7n,93p,494b,573s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr12.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr17.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt10.pfb>
-Output written on codigoTP2.pdf (5 pages, 201156 bytes).
+Output written on codigoTP2.pdf (6 pages, 202298 bytes).
 PDF statistics:
- 122 PDF objects out of 1000 (max. 8388607)
- 92 compressed objects within 1 object stream
- 17 named destinations out of 1000 (max. 500000)
- 51 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 145 PDF objects out of 1000 (max. 8388607)
+ 113 compressed objects within 2 object streams
+ 23 named destinations out of 1000 (max. 500000)
+ 83 words of extra memory for PDF output out of 10000 (max. 10000000)
 

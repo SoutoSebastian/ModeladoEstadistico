@@ -281,9 +281,7 @@ Para representar el País se utilizó el primer país informado en production_co
 
 # 3: Selección de modelos
 
-Para comparar la capacidad predictiva de los distintos modelos, se dividió aleatoriamente la base disponible en un conjunto de entrenamiento, compuesto por el 80% de las observaciones, y un conjunto de validación, compuesto por el 20% restante. Todos los modelos se entrenaron y evaluaron utilizando la misma partición, de manera que los errores cuadráticos medios obtenidos fueran comparables.
-
-Además de las variables disponibles en la base de títulos, se incorporó información proveniente de la base de créditos. En particular, se calculó para cada título la cantidad de actores y directores registrados. También se construyeron algunas variables derivadas de los títulos, las descripciones, los géneros, los países de producción y la cantidad de votos recibidos.
+Además de las variables disponibles en la base de títulos, se incorporó información proveniente de la base de créditos. En particular, se calculó para cada título la cantidad de actores y directores registrados.
 
 ```{r, include = FALSE}
 
@@ -378,12 +376,6 @@ stopifnot(
     nrow(datos_validacion) ==
     nrow(datos_modelado)
 )
-```
-
-
-La partición generó un conjunto de entrenamiento con `r nrow(datos_entrenamiento)` títulos y un conjunto de validación con `r nrow(datos_validacion)` títulos.
-
-```{r, include = FALSE}
 
 # Revisamos la cantidad de valores faltantes en las variables.
 
@@ -483,7 +475,7 @@ stopifnot(
 
 Antes de ajustar los modelos, se analizaron los valores faltantes de las variables predictoras. En el caso de `seasons`, los faltantes correspondían a películas, para las cuales la cantidad de temporadas no resulta aplicable. Por este motivo, se reemplazaron por cero. La ausencia de `age_certification` se representó mediante una categoría adicional denominada “Sin dato”, evitando eliminar los títulos sin clasificación informada. Para los títulos sin información sobre la cantidad de votos de IMDb, se reemplazó el logaritmo de dicha variable por la mediana calculada exclusivamente sobre el conjunto de entrenamiento. Además, se incorporó una variable indicadora que identifica estas observaciones. El mismo tratamiento se aplicó posteriormente al conjunto de validación, evitando utilizar información de este último durante la preparación de los datos.
 
-Calculamos la mediana solo con entrenamiento porque la validación debe simular datos que el modelo todavía no conoce. Si usáramos toda la base para calcular la mediana, estaríamos incorporando indirectamente información de validación durante el entrenamiento. Con esto dejamos los datos listos. El siguiente paso es construir **el modelo base**, que predice siempre el promedio y nos da un MSE mínimo de referencia para evaluar si los modelos posteriores realmente aportan capacidad predictiva.
+El siguiente paso es construir **el modelo base**, que predice siempre el promedio y nos da un MSE mínimo de referencia para evaluar si los modelos posteriores realmente aportan capacidad predictiva.
 
 ```{r, echo=FALSE}
 
@@ -524,6 +516,8 @@ resultados_modelos <- tibble(
 
 ```
 
+### Modelo base
+
 Como referencia inicial, se construyó un modelo base que predice para todos los títulos el puntaje IMDb promedio observado en el conjunto de entrenamiento. Este modelo obtuvo un MSE de `r round(mse_base, 3)` sobre el conjunto de validación.
 
 Este resultado se utiliza como punto de comparación: para que un modelo con variables predictoras resulte útil, debería obtener un MSE menor que el del modelo base.
@@ -551,7 +545,7 @@ resultados_modelos %>%
   )
 ```
 
-###Primer modelo
+### Primer modelo
 
 Como primer modelo candidato se ajustó una regresión lineal múltiple. Se incluyeron características originales de los títulos, como el tipo de contenido, el año de lanzamiento, la duración, la cantidad de temporadas y la clasificación etaria. También se incorporaron la cantidad de votos transformada logarítmicamente y distintas variables derivadas de los géneros, países, créditos, títulos y descripciones.
 
@@ -647,4 +641,115 @@ resultados_modelos %>%
 
 El modelo lineal obtuvo un MSE de `r round(mse_lineal, 3)` en el conjunto de validación, frente a un MSE de `r round(mse_base, 3)` obtenido por el modelo base. La regresión intenta explicar el puntaje mediante una suma de contribuciones. Por ejemplo, estima cuánto cambia el score esperado ante diferencias en duración, año, votos o cantidad de actores, manteniendo constantes las demás variables. Su limitación es que supone relaciones esencialmente lineales. Por ejemplo, supone que el efecto de pasar de 60 a 70 minutos tiene la misma forma que el de pasar de 150 a 160.
 
-###Segundo modelo
+### Segundo modelo
+
+```{r, include=FALSE}
+library(mgcv)
+```
+Como segundo modelo candidato se ajustó una regresión con splines penalizados. En particular, se permitió que el año de lanzamiento, la duración y el logaritmo de la cantidad de votos tuvieran relaciones no lineales con el puntaje de IMDb. Las demás variables se incorporaron de la misma forma que en la regresión lineal, facilitando la comparación entre ambos modelos.
+
+El grado de suavidad de las curvas fue seleccionado mediante REML, penalizando aquellas formas excesivamente complejas. De esta manera, el modelo puede capturar patrones no lineales sin ajustarse innecesariamente a las observaciones de entrenamiento.
+
+```{r, include = FALSE}
+
+# Ajustamos una regresión con splines penalizados.
+# Permitimos relaciones no lineales para duración,
+# año de lanzamiento y cantidad de votos.
+
+modelo_splines <- gam(
+  imdb_score ~
+    type +
+    s(release_year, k = 10) +
+    s(runtime, k = 10) +
+    seasons +
+    age_certification +
+    s(log_imdb_votes, k = 10) +
+    votos_faltantes +
+    comedia +
+    cantidad_generos +
+    cantidad_paises +
+    cantidad_actores +
+    cantidad_directores +
+    largo_titulo +
+    largo_descripcion,
+  data = datos_entrenamiento,
+  method = "REML"
+)
+
+
+# Generamos las predicciones sobre el mismo
+# conjunto de validación utilizado anteriormente.
+
+predicciones_splines <- predict(
+  modelo_splines,
+  newdata = datos_validacion
+)
+
+
+# Calculamos el MSE del modelo con splines.
+
+mse_splines <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_splines
+  )^2
+)
+
+
+# Eliminamos un resultado anterior del mismo modelo,
+# en caso de haber ejecutado el bloque más de una vez.
+
+resultados_modelos <- resultados_modelos %>%
+  filter(Modelo != "Splines penalizados")
+
+
+# Incorporamos el nuevo MSE a la tabla comparativa.
+
+resultados_modelos <- bind_rows(
+  resultados_modelos,
+  tibble(
+    Modelo = "Splines penalizados",
+    MSE = mse_splines
+  )
+)
+
+
+# Verificamos que todas las observaciones
+# tengan una predicción válida.
+
+stopifnot(
+  length(predicciones_splines) ==
+    nrow(datos_validacion),
+  !anyNA(predicciones_splines)
+)
+
+```
+
+```{r, echo=FALSE}
+resultados_modelos %>%
+  mutate(
+    MSE = round(MSE, 3)
+  ) %>%
+  kable(
+    caption = "Comparación del desempeño predictivo de los modelos",
+    col.names = c("Modelo", "MSE de validación"),
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE
+  )
+```
+
+La regresión con splines obtuvo un MSE de `r round(mse_splines, 3)` en el conjunto de validación, frente a un MSE de `r round(mse_lineal, 3)` obtenido por la regresión lineal. El MSE baja aproximadamente 6,3% respecto de la regresión lineal y 27,2% respecto del modelo base. Esto sugiere que imponer relaciones estrictamente lineales era demasiado restrictivo y que existe información predictiva en las relaciones no lineales de variables como duración, año y cantidad de votos.
+
+### Tercer modelo
+
+
