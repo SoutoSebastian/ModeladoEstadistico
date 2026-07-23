@@ -528,7 +528,123 @@ Como referencia inicial, se construyó un modelo base que predice para todos los
 
 Este resultado se utiliza como punto de comparación: para que un modelo con variables predictoras resulte útil, debería obtener un MSE menor que el del modelo base.
 
-```{r, echo= FALSE}
-resultados_modelos
-
+```{r, echo = FALSE}
+resultados_modelos %>%
+  mutate(
+    MSE = round(MSE, 3)
+  ) %>%
+  kable(
+    caption = "Comparación del desempeño predictivo de los modelos",
+    col.names = c("Modelo", "MSE de validación"),
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE
+  )
 ```
+
+###Primer modelo
+
+Como primer modelo candidato se ajustó una regresión lineal múltiple. Se incluyeron características originales de los títulos, como el tipo de contenido, el año de lanzamiento, la duración, la cantidad de temporadas y la clasificación etaria. También se incorporaron la cantidad de votos transformada logarítmicamente y distintas variables derivadas de los géneros, países, créditos, títulos y descripciones.
+
+```{r, include=FALSE}
+
+# Ajustamos una regresión lineal múltiple
+# utilizando el conjunto de entrenamiento.
+
+modelo_lineal <- lm(
+  imdb_score ~
+    type +
+    release_year +
+    runtime +
+    seasons +
+    age_certification +
+    log_imdb_votes +
+    votos_faltantes +
+    comedia +
+    cantidad_generos +
+    cantidad_paises +
+    cantidad_actores +
+    cantidad_directores +
+    largo_titulo +
+    largo_descripcion,
+  data = datos_entrenamiento
+)
+
+
+# Generamos predicciones para las observaciones
+# del conjunto de validación.
+
+predicciones_lineal <- predict(
+  modelo_lineal,
+  newdata = datos_validacion
+)
+
+
+# Calculamos el MSE del modelo lineal
+# sobre el conjunto de validación.
+
+mse_lineal <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_lineal
+  )^2
+)
+
+
+# Incorporamos el resultado a la tabla comparativa.
+
+resultados_modelos <- bind_rows(
+  resultados_modelos,
+  tibble(
+    Modelo = "Regresión lineal",
+    MSE = mse_lineal
+  )
+)
+
+
+# Verificamos que el modelo haya generado
+# una predicción para cada título de validación.
+
+stopifnot(
+  length(predicciones_lineal) ==
+    nrow(datos_validacion),
+  !anyNA(predicciones_lineal)
+)
+```
+
+
+```{r, echo = FALSE}
+resultados_modelos %>%
+  mutate(
+    MSE = round(MSE, 3)
+  ) %>%
+  kable(
+    caption = "Comparación del desempeño predictivo de los modelos",
+    col.names = c("Modelo", "MSE de validación"),
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE
+  )
+```
+
+El modelo lineal obtuvo un MSE de `r round(mse_lineal, 3)` en el conjunto de validación, frente a un MSE de `r round(mse_base, 3)` obtenido por el modelo base. La regresión intenta explicar el puntaje mediante una suma de contribuciones. Por ejemplo, estima cuánto cambia el score esperado ante diferencias en duración, año, votos o cantidad de actores, manteniendo constantes las demás variables. Su limitación es que supone relaciones esencialmente lineales. Por ejemplo, supone que el efecto de pasar de 60 a 70 minutos tiene la misma forma que el de pasar de 150 a 160.
+
+###Segundo modelo
