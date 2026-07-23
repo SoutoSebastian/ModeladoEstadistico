@@ -272,3 +272,263 @@ comparacion %>%
     position = "center"
   )
 ```
+
+El modelo crudo muestra que los títulos clasificados como comedia presentan, en promedio, un puntaje IMDb 0,206 puntos menor que los títulos que no incluyen este género. Al ajustar por Año, Duración y País, el coeficiente estimado para Comedia es de -0,221. Por lo tanto, bajo los supuestos representados en el DAG, el efecto causal directo estimado indica que, manteniendo constantes dichas variables, los títulos de comedia tienen un puntaje IMDb aproximadamente 0,221 puntos menor.
+
+La similitud entre ambos coeficientes muestra que el ajuste modifica poco la asociación observada: tanto la estimación cruda como la ajustada son negativas con valores similares. Sin embargo, la interpretación cambia, ya que el modelo ajustado busca aislar el efecto directo de Comedia, excluyendo el efecto mediado por la Duración y bloqueando los caminos no causales identificados en el DAG.
+
+Para representar el País se utilizó el primer país informado en production_countries. Esta decisión permitió evitar una representación de alta dimensionalidad, generada por la gran cantidad de países y combinaciones de países presentes en los datos. Aunque esta simplificación no captura por completo las coproducciones, se consideró adecuada para realizar el ajuste requerido sin aumentar innecesariamente la complejidad del modelo. 
+
+# 3: Selección de modelos
+
+Para comparar la capacidad predictiva de los distintos modelos, se dividió aleatoriamente la base disponible en un conjunto de entrenamiento, compuesto por el 80% de las observaciones, y un conjunto de validación, compuesto por el 20% restante. Todos los modelos se entrenaron y evaluaron utilizando la misma partición, de manera que los errores cuadráticos medios obtenidos fueran comparables.
+
+Además de las variables disponibles en la base de títulos, se incorporó información proveniente de la base de créditos. En particular, se calculó para cada título la cantidad de actores y directores registrados. También se construyeron algunas variables derivadas de los títulos, las descripciones, los géneros, los países de producción y la cantidad de votos recibidos.
+
+```{r, include = FALSE}
+
+# Resumimos la información de créditos para tener una fila por título.
+
+credits_resumen <- credits_train %>%
+  group_by(id) %>%
+  summarise(
+    cantidad_actores = n_distinct(
+      person_id[role == "ACTOR"],
+      na.rm = TRUE
+    ),
+    cantidad_directores = n_distinct(
+      person_id[role == "DIRECTOR"],
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+
+
+# Unimos la información de títulos con el resumen de créditos
+# y construimos algunas variables adicionales.
+
+datos_modelado <- titles_train %>%
+  left_join(
+    credits_resumen,
+    by = "id"
+  ) %>%
+  mutate(
+    cantidad_actores = replace_na(
+      cantidad_actores,
+      0L
+    ),
+    cantidad_directores = replace_na(
+      cantidad_directores,
+      0L
+    ),
+    cantidad_generos = if_else(
+      genres == "[]",
+      0L,
+      str_count(genres, ",") + 1L
+    ),
+    cantidad_paises = if_else(
+      production_countries == "[]",
+      0L,
+      str_count(production_countries, ",") + 1L
+    ),
+    largo_titulo = nchar(title),
+    largo_descripcion = nchar(
+      coalesce(description, "")
+    ),
+    log_imdb_votes = log1p(imdb_votes)
+  )
+
+
+# Fijamos una semilla para que la partición sea reproducible.
+
+set.seed(123)
+
+
+# Seleccionamos aleatoriamente el 80% de los títulos
+# para el conjunto de entrenamiento.
+
+indices_entrenamiento <- sample(
+  seq_len(nrow(datos_modelado)),
+  size = floor(0.80 * nrow(datos_modelado))
+)
+
+
+# Construimos los conjuntos de entrenamiento y validación.
+
+datos_entrenamiento <- datos_modelado[
+  indices_entrenamiento,
+]
+
+datos_validacion <- datos_modelado[
+  -indices_entrenamiento,
+]
+
+
+# Verificamos que no haya títulos compartidos entre ambos conjuntos
+# y que no se hayan perdido observaciones.
+
+stopifnot(
+  length(
+    intersect(
+      datos_entrenamiento$id,
+      datos_validacion$id
+    )
+  ) == 0,
+  nrow(datos_entrenamiento) +
+    nrow(datos_validacion) ==
+    nrow(datos_modelado)
+)
+```
+
+
+La partición generó un conjunto de entrenamiento con `r nrow(datos_entrenamiento)` títulos y un conjunto de validación con `r nrow(datos_validacion)` títulos.
+
+```{r, include = FALSE}
+
+# Revisamos la cantidad de valores faltantes en las variables.
+
+resumen_faltantes <- datos_entrenamiento %>%
+  summarise(
+    across(
+      everything(),
+      ~ sum(is.na(.))
+    )
+  ) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "cantidad_faltantes"
+  ) %>%
+  filter(cantidad_faltantes > 0) %>%
+  arrange(desc(cantidad_faltantes))
+
+
+# Calculamos la mediana de los votos utilizando únicamente
+# el conjunto de entrenamiento.
+
+mediana_log_votos <- median(
+  datos_entrenamiento$log_imdb_votes,
+  na.rm = TRUE
+)
+
+
+# Función para aplicar el mismo tratamiento
+# a entrenamiento y validación.
+
+preparar_datos <- function(datos, mediana_votos) {
+
+  datos %>%
+    mutate(
+
+      # Las películas no tienen temporadas.
+      # Por lo tanto, el faltante es estructural.
+
+      seasons = if_else(
+        type == "MOVIE",
+        0,
+        seasons
+      ),
+
+      # La ausencia de clasificación se conserva
+      # como una categoría adicional.
+
+      age_certification = replace_na(
+        age_certification,
+        "Sin dato"
+      ),
+
+      # Identificamos los títulos sin información de votos.
+
+      votos_faltantes = as.integer(
+        is.na(log_imdb_votes)
+      ),
+
+      # Reemplazamos los votos faltantes por la mediana
+      # calculada en entrenamiento.
+
+      log_imdb_votes = replace_na(
+        log_imdb_votes,
+        mediana_votos
+      )
+    )
+}
+
+
+# Aplicamos exactamente el mismo procedimiento
+# a ambos conjuntos.
+
+datos_entrenamiento <- preparar_datos(
+  datos_entrenamiento,
+  mediana_log_votos
+)
+
+datos_validacion <- preparar_datos(
+  datos_validacion,
+  mediana_log_votos
+)
+
+
+# Verificamos que las variables tratadas
+# ya no contengan valores faltantes.
+
+stopifnot(
+  !anyNA(datos_entrenamiento$seasons),
+  !anyNA(datos_validacion$seasons),
+  !anyNA(datos_entrenamiento$age_certification),
+  !anyNA(datos_validacion$age_certification),
+  !anyNA(datos_entrenamiento$log_imdb_votes),
+  !anyNA(datos_validacion$log_imdb_votes)
+)
+```
+
+Antes de ajustar los modelos, se analizaron los valores faltantes de las variables predictoras. En el caso de `seasons`, los faltantes correspondían a películas, para las cuales la cantidad de temporadas no resulta aplicable. Por este motivo, se reemplazaron por cero. La ausencia de `age_certification` se representó mediante una categoría adicional denominada “Sin dato”, evitando eliminar los títulos sin clasificación informada. Para los títulos sin información sobre la cantidad de votos de IMDb, se reemplazó el logaritmo de dicha variable por la mediana calculada exclusivamente sobre el conjunto de entrenamiento. Además, se incorporó una variable indicadora que identifica estas observaciones. El mismo tratamiento se aplicó posteriormente al conjunto de validación, evitando utilizar información de este último durante la preparación de los datos.
+
+Calculamos la mediana solo con entrenamiento porque la validación debe simular datos que el modelo todavía no conoce. Si usáramos toda la base para calcular la mediana, estaríamos incorporando indirectamente información de validación durante el entrenamiento. Con esto dejamos los datos listos. El siguiente paso es construir **el modelo base**, que predice siempre el promedio y nos da un MSE mínimo de referencia para evaluar si los modelos posteriores realmente aportan capacidad predictiva.
+
+```{r, echo=FALSE}
+
+# Calculamos el puntaje promedio utilizando solamente
+# las observaciones del conjunto de entrenamiento.
+
+media_entrenamiento <- mean(
+  datos_entrenamiento$imdb_score
+)
+
+
+# El modelo base asigna esa misma predicción
+# a todos los títulos del conjunto de validación.
+
+predicciones_base <- rep(
+  media_entrenamiento,
+  nrow(datos_validacion)
+)
+
+
+# Calculamos el error cuadrático medio en validación.
+
+mse_base <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_base
+  )^2
+)
+
+
+# Creamos una tabla en la que iremos guardando
+# el MSE de todos los modelos evaluados.
+
+resultados_modelos <- tibble(
+  Modelo = "Modelo base",
+  MSE = mse_base
+)
+
+```
+
+Como referencia inicial, se construyó un modelo base que predice para todos los títulos el puntaje IMDb promedio observado en el conjunto de entrenamiento. Este modelo obtuvo un MSE de `r round(mse_base, 3)` sobre el conjunto de validación.
+
+Este resultado se utiliza como punto de comparación: para que un modelo con variables predictoras resulte útil, debería obtener un MSE menor que el del modelo base.
+
+```{r, echo= FALSE}
+resultados_modelos
+
+```
