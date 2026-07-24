@@ -1,6 +1,6 @@
 ---
 title: 'Trabajo Práctico 2: Modelado Estadístico'
-author: "Sebastian Souto"
+author: "Sebastian Souto y Santiago Chiquinho"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
@@ -13,6 +13,7 @@ library(ggplot2)
 library(tidyverse)
 library(MASS)
 library(kableExtra)
+library(tidytext)
 ```
 
 ```{r, include = FALSE}
@@ -78,7 +79,7 @@ genres_df %>%
 ```
 
 
-Existe un importante solapamiento entre las distribuciones, por lo que el género por sí solo no parece explicar completamente el puntaje del título. Sin embargo podemos destacar que hay generos que presentan más variabilidad que otros, por ejemplo "drama" es un género con gran variabilidad.
+Existe un importante solapamiento entre las distribuciones, por lo que el género por sí solo no parece explicar completamente el puntaje del título. Sin embargo podemos destacar diferencias en los géneros ubicados en lo más alto del gráfico y en lo más bajo. Tambíen notamos que hay géneros con más variabilidad, uno de ellos es $Drama$.
 
 ### Actores y Directores
 
@@ -178,6 +179,69 @@ ggplot(top_bottom,
 ```
 
 En las tablas y el gráfico mostrado, se puede observar que hay ciertos directores y actores que tienen mejor puntuación en sus películas. Mientras que otros tienen menor puntuación.
+
+### Títulos
+
+Vamos a analizar si hay palabras en los títulos que estén asociadas con un mayor puntaje. EL procedimiento consistió en dividir los títulos en palabras y tomar promedio de los puntajes en IMDb. Esto no lo realizaremos para cada palabra, sino que se van a eliminar las stopwords, es decir palabras muy comúnes que no aportan información real. También nos quedamos con las palabras que tengan más de 8 apariciones. 
+
+```{r, include = FALSE}
+# Con el código siguiente, vamos a tomar cada palabra que aparece en un título, eliminando las stopwords, para luego contar cuantas veces aparece y tomar promedio de los puntajes de imdb. Es un enfoque simple, pero resulta interesante llevarlo a cabo.
+
+palabras <- titles_train %>%
+  dplyr::select(title, imdb_score) %>%
+  unnest_tokens(word, title) %>%
+  anti_join(stop_words, by = c("word")) %>% #elimina filas donde correspondientes a stopwords (por ej: the, a, of,...)
+  group_by(word) %>%
+  summarise(
+    Cantidad = n(),
+    `IMDb promedio` = mean(imdb_score),
+    .groups = "drop"
+  ) %>%
+  filter(Cantidad >= 8)
+```
+
+Se obtuvieron los siguientes resultados:
+
+```{r, echo = FALSE}
+palabras %>%
+  arrange(desc(`IMDb promedio`)) %>%
+  slice_head(n = 5) %>%
+  mutate(
+    `IMDb promedio` = round(`IMDb promedio`, 2)
+  ) %>%
+  kable(
+    caption = "Cinco palabras asociadas con títulos de mayor puntaje IMDb",
+    col.names = c("Palabra", "Cantidad", "IMDb promedio"),
+    booktabs = TRUE,
+    align = c("l", "c", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+```{r, echo = FALSE}
+palabras %>%
+  arrange(`IMDb promedio`) %>%
+  slice_head(n = 10) %>%
+  mutate(
+    `IMDb promedio` = round(`IMDb promedio`, 2)
+  ) %>%
+  kable(
+    caption = "Cinco palabras más asociadas con títulos de menor puntaje IMDb",
+    col.names = c("Palabra", "Cantidad", "IMDb promedio"),
+    booktabs = TRUE,
+    align = c("l", "c", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+En el caso de los mejores puntajes no pudimos encontrar un patrón, pero para los peores sí. Notamos que las películas que son secuelas o terceras partes y tienen "2" o "3" en el título se encuentran el la tabla de peores puntajes. Las películas peores valoradas, desde el punto de vista de este enfoque, tratan sobre monstruos. Y tenemos 44 películas navideñas que tienen puntaje bajo.
 
 # 2: Causalidad
 
