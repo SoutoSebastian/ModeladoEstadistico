@@ -14,6 +14,10 @@ library(tidyverse)
 library(MASS)
 library(kableExtra)
 library(tidytext)
+library(mgcv) # splines 
+library(rpart) # arbol de regresion
+library(ranger) #random forest
+library(lme4) #efectos mixtos
 ```
 
 ```{r, include = FALSE}
@@ -210,7 +214,7 @@ palabras %>%
     `IMDb promedio` = round(`IMDb promedio`, 2)
   ) %>%
   kable(
-    caption = "Cinco palabras asociadas con títulos de mayor puntaje IMDb",
+    caption = "5 palabras asociadas con títulos de mayor puntaje IMDb",
     col.names = c("Palabra", "Cantidad", "IMDb promedio"),
     booktabs = TRUE,
     align = c("l", "c", "c")
@@ -229,7 +233,7 @@ palabras %>%
     `IMDb promedio` = round(`IMDb promedio`, 2)
   ) %>%
   kable(
-    caption = "Cinco palabras más asociadas con títulos de menor puntaje IMDb",
+    caption = "10 palabras asociadas con títulos de menor puntaje IMDb",
     col.names = c("Palabra", "Cantidad", "IMDb promedio"),
     booktabs = TRUE,
     align = c("l", "c", "c")
@@ -362,6 +366,9 @@ credits_resumen <- credits_train %>%
       person_id[role == "DIRECTOR"],
       na.rm = TRUE
     ),
+    director = first(
+      name[role == "DIRECTOR"]
+    ),
     .groups = "drop"
   )
 
@@ -378,6 +385,10 @@ datos_modelado <- titles_train %>%
     cantidad_actores = replace_na(
       cantidad_actores,
       0L
+    ),
+    director = replace_na(
+      director,
+      "Sin director"
     ),
     cantidad_directores = replace_na(
       cantidad_directores,
@@ -707,9 +718,6 @@ El modelo lineal obtuvo un MSE de `r round(mse_lineal, 3)` en el conjunto de val
 
 ### Segundo modelo
 
-```{r, include=FALSE}
-library(mgcv)
-```
 Como segundo modelo candidato se ajustó una regresión con splines penalizados. En particular, se permitió que el año de lanzamiento, la duración y el logaritmo de la cantidad de votos tuvieran relaciones no lineales con el puntaje de IMDb. Las demás variables se incorporaron de la misma forma que en la regresión lineal, facilitando la comparación entre ambos modelos.
 
 El grado de suavidad de las curvas fue seleccionado mediante REML, penalizando aquellas formas excesivamente complejas. De esta manera, el modelo puede capturar patrones no lineales sin ajustarse innecesariamente a las observaciones de entrenamiento.
@@ -815,9 +823,7 @@ resultados_modelos %>%
 La regresión con splines obtuvo un MSE de `r round(mse_splines, 3)` en el conjunto de validación, frente a un MSE de `r round(mse_lineal, 3)` obtenido por la regresión lineal. El MSE baja aproximadamente 6,3% respecto de la regresión lineal y 27,2% respecto del modelo base. Esto sugiere que imponer relaciones estrictamente lineales era demasiado restrictivo y que existe información predictiva en las relaciones no lineales de variables como duración, año y cantidad de votos.
 
 ### Tercer modelo
-```{r, include=FALSE}
-library(rpart)
-```
+
 
 Como tercer modelo candidato se ajustó un árbol de regresión. Este modelo divide recursivamente el espacio de las variables predictoras en regiones y asigna a cada región una predicción correspondiente al puntaje promedio de los títulos que la integran. A diferencia de la regresión lineal, el árbol puede representar relaciones no lineales e interacciones entre variables sin que estas deban especificarse previamente.
 
@@ -953,16 +959,310 @@ resultados_modelos %>%
     bold = TRUE
   )
 ```
-Inicialmente se permitió el crecimiento de un árbol relativamente flexible. Posteriormente, se seleccionó el parámetro de complejidad mediante validación cruzada de 10 particiones utilizando únicamente el conjunto de entrenamiento. Finalmente, el árbol fue podado con el objetivo de evitar divisiones que aumentaran la complejidad sin reducir suficientemente el error de predicción. El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación. El árbol de regresión obtuvo un MSE de 1,007 en el conjunto de validación. Este resultado representa una mejora respecto de la regresión lineal, cuyo MSE fue de 1,034, lo que sugiere que la incorporación automática de relaciones no lineales e interacciones entre las variables aportó capacidad predictiva.
+Inicialmente se permitió el crecimiento de un árbol relativamente flexible. Posteriormente, se seleccionó el parámetro de complejidad mediante validación cruzada de 10 particiones utilizando únicamente el conjunto de entrenamiento. Finalmente, el árbol fue podado con el objetivo de evitar divisiones que aumentaran la complejidad sin reducir suficientemente el error de predicción. El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación. El árbol de regresión obtuvo un MSE de 1,007 en el conjunto de validación. Este resultado representa una mejora respecto de la regresión lineal, cuyo MSE fue de 1,034, lo que sugiere que la incorporación automática de relaciones no lineales e interacciones entre las variables aportó capacidad predictiva. Sin embargo, no mejora el resultado obtenido por el modelo de Splines.
 
 
 
 
 
+### Cuarto modelo.
+
+Ahora, siguiendo la línea del modelo anterior, implementamos un Random Forest. Este método consiste en construir múltiples árboles de regresión sobre distintas muestras bootstrap del conjunto de entrenamiento. Además, en cada división de cada árbol se considera únicamente un subconjunto aleatorio de las variables predictoras, lo que introduce diversidad entre los árboles y reduce la correlación entre ellos. La predicción final se obtiene promediando las predicciones de todos los árboles del bosque.
+
+
+```{r, include = FALSE}
+
+# Entrenamos el Random Forest.
+
+modelo_rf <- ranger(
+  imdb_score ~
+    type +
+    release_year +
+    runtime +
+    seasons +
+    age_certification +
+    log_imdb_votes +
+    votos_faltantes +
+    comedia +
+    cantidad_generos +
+    cantidad_paises +
+    cantidad_actores +
+    cantidad_directores +
+    largo_titulo +
+    largo_descripcion,
+  data = datos_entrenamiento,
+  num.trees = 500,
+  importance = "impurity",
+  seed = 123
+)
+
+
+# Generamos las predicciones sobre el conjunto de validación.
+
+predicciones_rf <- predict(
+  modelo_rf,
+  data = datos_validacion
+)$predictions
+
+
+# Calculamos el MSE.
+
+mse_rf <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_rf
+  )^2
+)
+
+
+# Eliminamos un resultado previo si el bloque
+# se ejecutó más de una vez.
+
+resultados_modelos <- resultados_modelos %>%
+  filter(Modelo != "Random Forest")
+
+
+# Incorporamos el resultado a la tabla comparativa.
+
+resultados_modelos <- bind_rows(
+  resultados_modelos,
+  tibble(
+    Modelo = "Random Forest",
+    MSE = mse_rf
+  )
+)
+
+
+# Verificamos que todas las observaciones
+# tengan una predicción válida.
+
+stopifnot(
+  length(predicciones_rf) ==
+    nrow(datos_validacion),
+  !anyNA(predicciones_rf)
+)
+```
+
+
+```{r, echo=FALSE}
+resultados_modelos %>%
+  mutate(
+    MSE = round(MSE, 3)
+  ) %>%
+  kable(
+    caption = "Comparación del desempeño predictivo de los modelos",
+    col.names = c("Modelo", "MSE de validación"),
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE
+  )
+```
+
+En este trabajo se construyó un bosque de 500 árboles y se fijó una semilla para garantizar la reproducibilidad de los resultados. El modelo obtuvo un MSE de validación de 0.899, siendo el mejor desempeño alcanzado hasta el momento. En particular, representa una mejora de aproximadamente un 7% respecto del modelo basado en splines cúbicos.
+
+### Quinto modelo
+
+En esta sección implementamos diferentes modelo de efectos mixtos. Para este tipo de modelos es muy importante el proceso de diseño, dónde elegiremos que efectos serán fijos y cuáles aleatorios. Para ello vamos a implementar 3 modelos distintos, en el primero solo tomamos como efectos aleatorios al país, en el segundo al director y en el tercero ambos. 
+
+```{r, include = FALSE}
+#este bloque y el de abajo son un poco de analisis de datos para saber que efector aleatorios agregar. Despues lo saco
+datos_modelado %>%
+  count(director, sort = TRUE)
+```
+
+
+```{r, include = FALSE}
+datos_modelado %>%
+  count(director) %>%
+  summarise(
+    total = n(),
+    media = mean(n),
+    mediana = median(n),
+    maximo = max(n),
+    prop_unica = mean(n == 1)
+  )
+```
+
+```{r, include = FALSE}
+
+
+# Ajustamos el modelo de efectos mixtos.
+# Consideramos como efecto aleatorio el director.
+
+modelo_mixto1 <- lmer(
+  imdb_score ~
+    type +
+    release_year +
+    runtime +
+    seasons +
+    age_certification +
+    log_imdb_votes +
+    votos_faltantes +
+    comedia +
+    cantidad_generos +
+    cantidad_paises +
+    cantidad_actores +
+    cantidad_directores +
+    largo_titulo +
+    largo_descripcion +
+    (1 | director),
+  data = datos_entrenamiento
+)
+
+modelo_mixto2 <- lmer(
+  imdb_score ~
+    type +
+    release_year +
+    runtime +
+    seasons +
+    age_certification +
+    log_imdb_votes +
+    votos_faltantes +
+    comedia +
+    cantidad_generos +
+    cantidad_paises +
+    cantidad_actores +
+    cantidad_directores +
+    largo_titulo +
+    largo_descripcion +
+    (1 | pais),
+  data = datos_entrenamiento
+)
+
+modelo_mixto3 <- lmer(
+  imdb_score ~
+    type +
+    release_year +
+    runtime +
+    seasons +
+    age_certification +
+    log_imdb_votes +
+    votos_faltantes +
+    comedia +
+    cantidad_generos +
+    cantidad_paises +
+    cantidad_actores +
+    cantidad_directores +
+    largo_titulo +
+    largo_descripcion +
+    (1 | pais) +
+    (1 | director),
+  data = datos_entrenamiento
+)
+
+# Generamos las predicciones sobre el mismo conjunto de validación de los modelos anteriores.
+
+predicciones_mixto1 <- predict(
+  modelo_mixto1,
+  newdata = datos_validacion,
+  allow.new.levels = TRUE
+)
+
+predicciones_mixto2 <- predict(
+  modelo_mixto2,
+  newdata = datos_validacion,
+  allow.new.levels = TRUE
+)
+
+predicciones_mixto3 <- predict(
+  modelo_mixto3,
+  newdata = datos_validacion,
+  allow.new.levels = TRUE
+)
+
+# Calculamos el MSE del modelo de efectos mixtos.
+
+mse_mixto1 <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_mixto1
+  )^2
+)
+
+mse_mixto2 <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_mixto2
+  )^2
+)
+
+mse_mixto3 <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_mixto3
+  )^2
+)
 
 
 
+# Eliminamos un resultado previo del mismo modelo
+# si el bloque se ejecutó más de una vez.
+
+resultados_modelos <- resultados_modelos %>%
+  filter(Modelo != "Efectos mixtos (Director)") %>%
+  filter(Modelo != "Efectos mixtos (País)") %>%
+  filter(Modelo != "Efectos mixtos (D + P)")
+
+# Incorporamos el MSE a la tabla comparativa.
+
+resultados_modelos <- bind_rows(
+  resultados_modelos,
+  tibble(
+    Modelo = "Efectos mixtos (Director)",
+    MSE = mse_mixto1
+  ),
+  tibble(
+    Modelo = "Efectos mixtos (País)",
+    MSE = mse_mixto2
+  ),
+  tibble(
+    Modelo = "Efectos mixtos (D + P)",
+    MSE = mse_mixto3
+  )
+)
+
+
+# Verificamos que todas las observaciones
+# tengan una predicción válida.
+
+stopifnot(
+  length(predicciones_mixto1) ==
+    nrow(datos_validacion),
+  !anyNA(predicciones_mixto1)
+)
+```
 
 
 
+```{r, echo = FALSE}
+resultados_modelos %>%
+  mutate(
+    MSE = round(MSE, 3)
+  ) %>%
+  kable(
+    caption = "Comparación del desempeño predictivo de los modelos",
+    col.names = c("Modelo", "MSE de validación"),
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE
+  )
+```
 
