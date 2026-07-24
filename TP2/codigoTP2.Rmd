@@ -815,5 +815,154 @@ resultados_modelos %>%
 La regresión con splines obtuvo un MSE de `r round(mse_splines, 3)` en el conjunto de validación, frente a un MSE de `r round(mse_lineal, 3)` obtenido por la regresión lineal. El MSE baja aproximadamente 6,3% respecto de la regresión lineal y 27,2% respecto del modelo base. Esto sugiere que imponer relaciones estrictamente lineales era demasiado restrictivo y que existe información predictiva en las relaciones no lineales de variables como duración, año y cantidad de votos.
 
 ### Tercer modelo
+```{r, include=FALSE}
+library(rpart)
+```
+
+Como tercer modelo candidato se ajustó un árbol de regresión. Este modelo divide recursivamente el espacio de las variables predictoras en regiones y asigna a cada región una predicción correspondiente al puntaje promedio de los títulos que la integran. A diferencia de la regresión lineal, el árbol puede representar relaciones no lineales e interacciones entre variables sin que estas deban especificarse previamente.
+
+```{r, include = FALSE}
+
+# Ajustamos inicialmente un árbol relativamente grande.
+# Como la variable respuesta es continua, usamos
+# el método "anova", que minimiza errores cuadrados.
+
+modelo_arbol_inicial <- rpart(
+  imdb_score ~
+    type +
+    release_year +
+    runtime +
+    seasons +
+    age_certification +
+    log_imdb_votes +
+    votos_faltantes +
+    comedia +
+    cantidad_generos +
+    cantidad_paises +
+    cantidad_actores +
+    cantidad_directores +
+    largo_titulo +
+    largo_descripcion,
+  data = datos_entrenamiento,
+  method = "anova",
+  control = rpart.control(
+    cp = 0.001,
+    xval = 10
+  )
+)
+
+
+# Buscamos el valor del parámetro de complejidad
+# que presenta el menor error de validación cruzada.
+
+tabla_complejidad <- modelo_arbol_inicial$cptable
+
+fila_cp_optimo <- which.min(
+  tabla_complejidad[, "xerror"]
+)
+
+cp_optimo <- tabla_complejidad[
+  fila_cp_optimo,
+  "CP"
+]
+
+
+# Podamos el árbol usando el valor de cp seleccionado.
+
+modelo_arbol <- prune(
+  modelo_arbol_inicial,
+  cp = cp_optimo
+)
+
+
+# Generamos las predicciones sobre el mismo
+# conjunto de validación de los modelos anteriores.
+
+predicciones_arbol <- predict(
+  modelo_arbol,
+  newdata = datos_validacion
+)
+
+
+# Calculamos el MSE del árbol de regresión.
+
+mse_arbol <- mean(
+  (
+    datos_validacion$imdb_score -
+      predicciones_arbol
+  )^2
+)
+
+
+# Calculamos la cantidad de hojas del árbol final.
+
+cantidad_hojas_arbol <- sum(
+  modelo_arbol$frame$var == "<leaf>"
+)
+
+
+# Eliminamos un resultado previo del mismo modelo
+# si el bloque se ejecutó más de una vez.
+
+resultados_modelos <- resultados_modelos %>%
+  filter(Modelo != "Árbol de regresión")
+
+
+# Incorporamos el MSE a la tabla comparativa.
+
+resultados_modelos <- bind_rows(
+  resultados_modelos,
+  tibble(
+    Modelo = "Árbol de regresión",
+    MSE = mse_arbol
+  )
+)
+
+
+# Verificamos que todas las observaciones
+# tengan una predicción válida.
+
+stopifnot(
+  length(predicciones_arbol) ==
+    nrow(datos_validacion),
+  !anyNA(predicciones_arbol)
+)
+
+```
+
+
+```{r, echo=FALSE}
+resultados_modelos %>%
+  mutate(
+    MSE = round(MSE, 3)
+  ) %>%
+  kable(
+    caption = "Comparación del desempeño predictivo de los modelos",
+    col.names = c("Modelo", "MSE de validación"),
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE
+  )
+```
+Inicialmente se permitió el crecimiento de un árbol relativamente flexible. Posteriormente, se seleccionó el parámetro de complejidad mediante validación cruzada de 10 particiones utilizando únicamente el conjunto de entrenamiento. Finalmente, el árbol fue podado con el objetivo de evitar divisiones que aumentaran la complejidad sin reducir suficientemente el error de predicción. El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación. El árbol de regresión obtuvo un MSE de 1,007 en el conjunto de validación. Este resultado representa una mejora respecto de la regresión lineal, cuyo MSE fue de 1,034, lo que sugiere que la incorporación automática de relaciones no lineales e interacciones entre las variables aportó capacidad predictiva.
+
+
+
+
+
+
+
+
+
+
 
 
