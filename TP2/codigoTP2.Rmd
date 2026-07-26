@@ -1267,6 +1267,17 @@ Como se observa en la tabla, el tercer modelo no solo supera a los demás modelo
 
 
 
+```{r, include = FALSE}
+#Esto es para el 6to modelo, todavia no agrego texto porque nose si va a funcionar
+
+write.csv(datos_entrenamiento,
+          "datos_entrenamiento.csv",
+          row.names = FALSE)
+
+write.csv(datos_validacion,
+          "datos_validacion.csv",
+          row.names = FALSE)
+```
 
 
 
