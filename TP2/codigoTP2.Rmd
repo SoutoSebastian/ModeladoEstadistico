@@ -412,6 +412,23 @@ datos_modelado <- titles_train %>%
   )
 
 
+#agregamos la columna de solo UN genero
+
+datos_modelado <- datos_modelado %>%
+  mutate(
+    genero_principal = genres %>%
+      str_remove_all("\\[|\\]|'") %>%
+      str_split(",\\s*") %>%
+      map_chr(~ {
+        if (length(.x) == 0 || .x[1] == "") {
+          "Sin género"
+        } else {
+          .x[1]
+        }
+      })
+  )
+
+
 # Fijamos una semilla para que la partición sea reproducible.
 
 set.seed(123)
@@ -1071,32 +1088,18 @@ En este trabajo se construyó un bosque de 500 árboles y se fijó una semilla p
 
 ### Quinto modelo
 
-En esta sección implementamos diferentes modelo de efectos mixtos. Para este tipo de modelos es muy importante el proceso de diseño, dónde elegiremos que efectos serán fijos y cuáles aleatorios. Para ello vamos a implementar 3 modelos distintos, en el primero solo tomamos como efectos aleatorios al país, en el segundo al director y en el tercero ambos. 
+En esta sección implementamos distintos modelos de efectos mixtos. En este tipo de modelos, el diseño de la estructura de efectos fijos y aleatorios resulta fundamental, ya que determina qué parte de la variabilidad se explica mediante covariables observadas y cuál se atribuye a diferencias entre grupos.
+En los tres modelos consideramos como efectos fijos las variables type, release_year, runtime, seasons, age_certification, log_imdb_votes, votos_faltantes, comedia, cantidad_generos y cantidad_actores. A partir de esta estructura base, fuimos incorporando distintos efectos aleatorios para evaluar su impacto en el desempeño predictivo.
 
-```{r, include = FALSE}
-#este bloque y el de abajo son un poco de analisis de datos para saber que efector aleatorios agregar. Despues lo saco
-datos_modelado %>%
-  count(director, sort = TRUE)
-```
+El primer modelo incluye únicamente un intercepto aleatorio por país. El segundo agrega, además, un intercepto aleatorio por director. Finalmente, el tercer modelo incorpora también un intercepto aleatorio por género principal y permite que el efecto de la duración (runtime) varíe entre países mediante una pendiente aleatoria (runtime | pais).
 
 
-```{r, include = FALSE}
-datos_modelado %>%
-  count(director) %>%
-  summarise(
-    total = n(),
-    media = mean(n),
-    mediana = median(n),
-    maximo = max(n),
-    prop_unica = mean(n == 1)
-  )
-```
 
 ```{r, include = FALSE}
 
 
-# Ajustamos el modelo de efectos mixtos.
-# Consideramos como efecto aleatorio el director.
+# Ajustamos los modelos de efectos mixtos.
+
 
 modelo_mixto1 <- lmer(
   imdb_score ~
@@ -1107,14 +1110,10 @@ modelo_mixto1 <- lmer(
     age_certification +
     log_imdb_votes +
     votos_faltantes +
-    comedia +
+    genero_principal +
     cantidad_generos +
-    cantidad_paises +
     cantidad_actores +
-    cantidad_directores +
-    largo_titulo +
-    largo_descripcion +
-    (1 | director),
+    (1 | pais),
   data = datos_entrenamiento
 )
 
@@ -1127,14 +1126,11 @@ modelo_mixto2 <- lmer(
     age_certification +
     log_imdb_votes +
     votos_faltantes +
-    comedia +
+    genero_principal +
     cantidad_generos +
-    cantidad_paises +
     cantidad_actores +
-    cantidad_directores +
-    largo_titulo +
-    largo_descripcion +
-    (1 | pais),
+    (1 | pais) +
+    (1 | director),
   data = datos_entrenamiento
 )
 
@@ -1147,16 +1143,13 @@ modelo_mixto3 <- lmer(
     age_certification +
     log_imdb_votes +
     votos_faltantes +
-    comedia +
+    genero_principal +
     cantidad_generos +
-    cantidad_paises +
     cantidad_actores +
-    cantidad_directores +
-    largo_titulo +
-    largo_descripcion +
-    (1 | pais) +
-    (1 | director),
-  data = datos_entrenamiento
+    (1 | director) +
+    (runtime | pais ) +
+    (1 | genero_principal),
+    data = datos_entrenamiento
 )
 
 # Generamos las predicciones sobre el mismo conjunto de validación de los modelos anteriores.
@@ -1217,15 +1210,15 @@ resultados_modelos <- resultados_modelos %>%
 resultados_modelos <- bind_rows(
   resultados_modelos,
   tibble(
-    Modelo = "Efectos mixtos (Director)",
+    Modelo = "Efectos mixtos (País)",
     MSE = mse_mixto1
   ),
   tibble(
-    Modelo = "Efectos mixtos (País)",
+    Modelo = "Efectos mixtos (País y Director)",
     MSE = mse_mixto2
   ),
   tibble(
-    Modelo = "Efectos mixtos (D + P)",
+    Modelo = "Efectos mixtos (País, Director y Género)",
     MSE = mse_mixto3
   )
 )
@@ -1265,4 +1258,16 @@ resultados_modelos %>%
     bold = TRUE
   )
 ```
+
+
+
+
+Como se observa en la tabla, el tercer modelo no solo supera a los demás modelos de efectos mixtos, sino que también obtiene el menor error cuadrático medio (MSE) entre todos los modelos implementados hasta el momento, alcanzando un valor de 0.895.
+
+
+
+
+
+
+
 
