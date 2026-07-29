@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.7.14)  29 JUL 2026 18:18
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.7.14)  29 JUL 2026 18:27
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -560,7 +560,7 @@ LaTeX Warning: Command \' invalid in math mode on input line 278.
 LaTeX Warning: Command \' invalid in math mode on input line 278.
 
 [4{c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}{c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}{c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}]
-LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 333.
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 325.
 (c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 ) [5] [6] [7] [8] (./codigoTP2.aux)
@@ -578,7 +578,7 @@ Here is how much of TeX's memory you used:
  14 hyphenation exceptions out of 8191
  88i,7n,93p,494b,593s stack positions out of 10000i,1000n,20000p,200000b,200000s
 <c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmbx12.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmmi10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr12.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmr17.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmsy10.pfb><c:/Users/santi/AppData/Roaming/TinyTeX/texmf-dist/fonts/type1/public/lm/lmtt10.pfb>
-Output written on codigoTP2.pdf (8 pages, 212786 bytes).
+Output written on codigoTP2.pdf (8 pages, 212468 bytes).
 PDF statistics:
  188 PDF objects out of 1000 (max. 8388607)
  154 compressed objects within 2 object streams

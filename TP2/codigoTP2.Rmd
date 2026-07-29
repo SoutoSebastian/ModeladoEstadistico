@@ -68,7 +68,6 @@ Podemos observar que para géneros como $War$ o $History$ la media es mayor a la
 
 Analicemos graficamente esta información:
 
-
 ```{r, echo = FALSE, fig.align='center', out.width='80%'}
 genres_df %>%
   ggplot(aes(x = reorder(genres, imdb_score, median),
@@ -98,7 +97,6 @@ genres_df %>%
     axis.text.y = element_text(size = 11)
   )
 ```
-
 
 Existe un importante solapamiento entre las distribuciones, por lo que el género por sí solo no parece explicar completamente el puntaje del título. Sin embargo podemos destacar diferencias en los géneros ubicados en lo más alto del gráfico y en lo más bajo. Tambíen notamos que hay géneros con más variabilidad, uno de ellos es $Drama$.
 
@@ -180,7 +178,6 @@ head(directores) %>%
 
 Veamos los mejores y los peores actores gráficamente:
 
-
 ```{r, echo = FALSE, fig.align='center', out.width='80%'}
 top_bottom <- bind_rows(
   actores %>%
@@ -232,7 +229,6 @@ ggplot(
     legend.position = "top"
   )
 ```
-
 
 En las tablas y el gráfico mostrado, se puede observar que hay ciertos directores y actores que tienen mejor puntuación en sus películas, mientras que otros tienen menor puntuación. Y la diferencia es notoria entre estos "grupos".
 
@@ -392,11 +388,10 @@ El modelo crudo muestra que los títulos clasificados como comedia presentan, en
 
 La similitud entre ambos coeficientes muestra que el ajuste modifica poco la asociación observada: tanto la estimación cruda como la ajustada son negativas con valores similares. Sin embargo, la interpretación cambia, ya que el modelo ajustado busca aislar el efecto directo de Comedia, excluyendo el efecto mediado por la Duración y bloqueando los caminos no causales identificados en el DAG.
 
-Para representar el País se utilizó el primer país informado en production_countries. Esta decisión permitió evitar una representación de alta dimensionalidad, generada por la gran cantidad de países y combinaciones de países presentes en los datos. Aunque esta simplificación no captura por completo las coproducciones, se consideró adecuada para realizar el ajuste requerido sin aumentar innecesariamente la complejidad del modelo.
 
 # 3: Selección de modelos
 
-Además de las variables originales de la base de títulos, se incorporó información proveniente de la base de créditos. En particular, para cada título se calculó la cantidad de actores y directores asociados. A partir de la base de títulos también se construyeron variables derivadas, como la cantidad de países y de géneros registrados. En el caso de los géneros, se conservó únicamente el género principal de cada título, ya que la variable original contenía una lista de géneros y esta simplificación permitió incorporarla de manera sencilla en los modelos que requieren una única categoría por observación.
+Además de las variables originales de la base de títulos, se incorporó información proveniente de la base de créditos. En particular, para cada título se calculó la cantidad de actores. A partir de la base de títulos también se construyeron variables derivadas, como la cantidad de países y de géneros registrados. En el caso de los géneros, se conservó únicamente el género principal de cada título, ya que la variable original contenía una lista de géneros y esta simplificación permitió incorporarla de manera sencilla en los modelos que requieren una única categoría por observación.
 
 ```{r, include = FALSE}
 
@@ -642,9 +637,9 @@ stopifnot(
 )
 ```
 
-Antes de ajustar los modelos, se analizaron los valores faltantes de las variables predictoras. En el caso de `seasons`, los faltantes correspondían a películas, para las cuales la cantidad de temporadas no resulta aplicable. Por este motivo, se reemplazaron por cero. La ausencia de `age_certification` se representó mediante una categoría adicional denominada “Sin dato”, evitando eliminar los títulos sin clasificación informada. Para los títulos sin información sobre la cantidad de votos de IMDb, se reemplazó el logaritmo de dicha variable por la mediana calculada exclusivamente sobre el conjunto de entrenamiento. Además, se incorporó una variable indicadora que identifica estas observaciones. El mismo tratamiento se aplicó posteriormente al conjunto de validación, evitando utilizar información de este último durante la preparación de los datos.
+Antes de ajustar los modelos, se analizaron los valores faltantes de las variables predictoras. En el caso de `seasons`, los faltantes correspondían a películas, para las cuales la cantidad de temporadas no resulta aplicable. Por este motivo, se reemplazaron por cero. La ausencia de `age_certification` se representó mediante una categoría adicional denominada “Sin dato”, evitando eliminar los títulos sin clasificación informada. Para los títulos sin información sobre la cantidad de votos de IMDb, se reemplazó el logaritmo de dicha variable por la mediana calculada exclusivamente sobre el conjunto de entrenamiento. El mismo tratamiento se aplicó posteriormente al conjunto de validación, evitando utilizar información de este último durante la preparación de los datos.
 
-El siguiente paso es construir **el modelo base**, que predice siempre el promedio y nos da un MSE mínimo de referencia para evaluar si los modelos posteriores realmente aportan capacidad predictiva.
+El siguiente paso es construir el modelo base, que predice siempre el promedio y nos da un MSE mínimo de referencia para evaluar si los modelos posteriores realmente aportan capacidad predictiva.
 
 ```{r, echo=FALSE}
 
@@ -1325,17 +1320,14 @@ write.csv(datos_validacion,
           row.names = FALSE)
 ```
 
-MODIFICAR CUANDO ESTEN TODOS LOS MODELOS TERMINADOS
-Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,331. La regresión lineal redujo el error a 1,035, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de 0,969. El árbol de regresión obtuvo un error de 1,007, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de 0,899. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE de 0,937 a 0,900 y finalmente a 0,895. Esto sugiere que parte de la variabilidad de los puntajes se encuentra asociada con características compartidas por los títulos pertenecientes a los mismos grupos, especialmente el director, mientras que la incorporación adicional del género produjo una mejora más pequeña.
+MODIFICAR CUANDO ESTEN TODOS LOS MODELOS TERMINADOS Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,331. La regresión lineal redujo el error a 1,035, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de 0,969. El árbol de regresión obtuvo un error de 1,007, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de 0,899. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE de 0,937 a 0,900 y finalmente a 0,895. Esto sugiere que parte de la variabilidad de los puntajes se encuentra asociada con características compartidas por los títulos pertenecientes a los mismos grupos, especialmente el director, mientras que la incorporación adicional del género produjo una mejora más pequeña.
 
-
-### Sexto Modelo 
+### Sexto Modelo
 
 Como sexto modelo implementamos una red neuronal.A las variables que veníamos utilizando le sumamos Descripción + título, para poder usarlas utilizamos BERT finetuneado para sentence-transformer y de esta manera conseguimos representaciones númericas de estas variables. Por ahora el MSE es de 0.813, lo mejor hasta el momento... tengo que escribir un poco mas de esto y el codigo esta en python
 
 # 4: Competencia
 
-ESTO CAMBIO
-Dentro de la partición de entrenamiento y validación utilizada, el menor MSE correspondió al modelo de efectos mixtos con país, director y género, con un valor de 0,895. Por este motivo, se lo seleccionó como modelo final para generar las predicciones solicitadas. 
+ESTO CAMBIO Dentro de la partición de entrenamiento y validación utilizada, el menor MSE correspondió al modelo de efectos mixtos con país, director y género, con un valor de 0,895. Por este motivo, se lo seleccionó como modelo final para generar las predicciones solicitadas.
 
 Sin embargo, su diferencia respecto de Random Forest, cuyo MSE fue de 0,899, es reducida, por lo que ambos modelos mostraron un desempeño predictivo muy similar. CONFIRMAR ESTO Y ARRANCAR
