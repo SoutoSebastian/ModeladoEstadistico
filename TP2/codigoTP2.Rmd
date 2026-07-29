@@ -409,10 +409,6 @@ credits_resumen <- credits_train %>%
       person_id[role == "ACTOR"],
       na.rm = TRUE
     ),
-    cantidad_directores = n_distinct(
-      person_id[role == "DIRECTOR"],
-      na.rm = TRUE
-    ),
     director = first(
       name[role == "DIRECTOR"]
     ),
@@ -437,10 +433,6 @@ datos_modelado <- titles_train %>%
       director,
       "Sin director"
     ),
-    cantidad_directores = replace_na(
-      cantidad_directores,
-      0L
-    ),
     cantidad_generos = if_else(
       genres == "[]",
       0L,
@@ -452,9 +444,6 @@ datos_modelado <- titles_train %>%
       str_count(production_countries, ",") + 1L
     ),
     largo_titulo = nchar(title),
-    largo_descripcion = nchar(
-      coalesce(description, "")
-    ),
     log_imdb_votes = log1p(imdb_votes)
   )
 
@@ -473,6 +462,14 @@ datos_modelado <- datos_modelado %>%
           .x[1]
         }
       })
+  )
+
+datos_modelado <- datos_modelado %>%
+  mutate(
+    pais = production_countries |>
+      stringr::str_remove_all("\\[|\\]|'") |>
+      stringr::str_split(",\\s*") |>
+      sapply(`[`, 1)
   )
 
 
@@ -500,6 +497,39 @@ datos_validacion <- datos_modelado[
   -indices_entrenamiento,
 ]
 
+# Detectamos primeros países que quedaron solamente en validación.
+
+paises_nuevos <- setdiff(
+  unique(datos_validacion$pais),
+  unique(datos_entrenamiento$pais)
+)
+
+
+# Movemos esas observaciones a entrenamiento para que
+# todos los países de validación sean conocidos por el modelo.
+
+filas_a_mover <- datos_validacion$pais %in% paises_nuevos
+
+datos_entrenamiento <- bind_rows(
+  datos_entrenamiento,
+  datos_validacion[filas_a_mover, ]
+)
+
+datos_validacion <- datos_validacion[
+  !filas_a_mover,
+]
+
+
+# Igualamos los niveles de la variable entre ambos conjuntos.
+
+datos_entrenamiento$pais <- factor(
+  datos_entrenamiento$pais
+)
+
+datos_validacion$pais <- factor(
+  datos_validacion$pais,
+  levels = levels(datos_entrenamiento$pais)
+)
 
 # Verificamos que no haya títulos compartidos entre ambos conjuntos
 # y que no se hayan perdido observaciones.
@@ -702,8 +732,8 @@ modelo_lineal <- lm(
     age_certification +
     log_imdb_votes +
     votos_faltantes +
-    comedia +
-    cantidad_generos,
+    genero_principal+
+    pais,
   data = datos_entrenamiento
 )
 
@@ -795,13 +825,9 @@ modelo_splines <- gam(
     age_certification +
     s(log_imdb_votes, k = 10) +
     votos_faltantes +
-    comedia +
-    cantidad_generos +
-    cantidad_paises +
     cantidad_actores +
-    cantidad_directores +
-    largo_titulo +
-    largo_descripcion,
+    genero_principal+
+    pais,
   data = datos_entrenamiento,
   method = "REML"
 )
@@ -899,13 +925,10 @@ modelo_arbol_inicial <- rpart(
     age_certification +
     log_imdb_votes +
     votos_faltantes +
-    comedia +
-    cantidad_generos +
-    cantidad_paises +
     cantidad_actores +
-    cantidad_directores +
     largo_titulo +
-    largo_descripcion,
+    genero_principal+
+    pais,
   data = datos_entrenamiento,
   method = "anova",
   control = rpart.control(
