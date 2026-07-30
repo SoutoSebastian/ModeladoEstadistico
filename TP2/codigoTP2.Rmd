@@ -1041,7 +1041,9 @@ resultados_modelos %>%
   )
 ```
 
+
 El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación.
+
 
 ### Cuarto modelo
 
@@ -1329,6 +1331,7 @@ write.csv(datos_validacion,
           row.names = FALSE)
 ```
 
+
 Como sexto modelo implementamos una **red neuronal** incorporando, además de las variables estructuradas utilizadas previamente, la información textual del título y la descripción. Para ello, se utilizó un modelo basado en BERT ajustado como sentence-transformer, que permite transformar los textos en representaciones numéricas (embeddings).
 
 Luego usamos estos embeddings y las variables utilizadas para los otros modelos como entrada de una red neuronal multicapa. El modelo fue entrenado con validación early-stopping para evitar overfitting y conservar los mejores pesos obtenidos.
@@ -1486,37 +1489,5 @@ datos_test$genero_principal <- factor(
 
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
