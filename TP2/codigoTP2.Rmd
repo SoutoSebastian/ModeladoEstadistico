@@ -1034,7 +1034,7 @@ resultados_modelos %>%
   )
 ```
 
-El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación. El árbol de regresión obtuvo un MSE de 1,007 en el conjunto de validación.
+El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación. 
 
 ### Cuarto modelo
 
@@ -1320,7 +1320,7 @@ write.csv(datos_validacion,
           row.names = FALSE)
 ```
 
-MODIFICAR CUANDO ESTEN TODOS LOS MODELOS TERMINADOS Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,331. La regresión lineal redujo el error a 1,035, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de 0,969. El árbol de regresión obtuvo un error de 1,007, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de 0,899. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE de 0,937 a 0,900 y finalmente a 0,895. Esto sugiere que parte de la variabilidad de los puntajes se encuentra asociada con características compartidas por los títulos pertenecientes a los mismos grupos, especialmente el director, mientras que la incorporación adicional del género produjo una mejora más pequeña.
+Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,331. La regresión lineal redujo el error a 0.950, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de 0.878. El árbol de regresión obtuvo un error de 0.995, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de 0,871. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE de 0,940 a 0,902 y finalmente a 0,906. Esto sugiere que parte de la variabilidad de los puntajes se encuentra asociada con características compartidas por los títulos pertenecientes a los mismos grupos, especialmente el director, mientras que la incorporación adicional del género produjo una mejora más pequeña.
 
 ### Sexto Modelo
 
@@ -1328,6 +1328,4 @@ Como sexto modelo implementamos una red neuronal.A las variables que veníamos u
 
 # 4: Competencia
 
-ESTO CAMBIO Dentro de la partición de entrenamiento y validación utilizada, el menor MSE correspondió al modelo de efectos mixtos con país, director y género, con un valor de 0,895. Por este motivo, se lo seleccionó como modelo final para generar las predicciones solicitadas.
-
-Sin embargo, su diferencia respecto de Random Forest, cuyo MSE fue de 0,899, es reducida, por lo que ambos modelos mostraron un desempeño predictivo muy similar. CONFIRMAR ESTO Y ARRANCAR
+Dentro de la partición de entrenamiento y validación utilizada, el menor MSE correspondió al modelo de Random Fores con un valor de 0,871. Por este motivo, se lo seleccionó como modelo final para generar las predicciones solicitadas. Trataremos de predecir también con el sexto modelo de redes neuronales.
