@@ -234,7 +234,7 @@ En las tablas y el gráfico mostrado, se puede observar que hay ciertos director
 
 ### Títulos
 
-Vamos a analizar si hay palabras en los títulos que estén asociadas con un mayor puntaje. EL procedimiento consistió en dividir los títulos en palabras y tomar promedio de los puntajes en IMDb. Esto no lo realizaremos para cada palabra, sino que se van a eliminar las stopwords, es decir palabras muy comúnes que no aportan información real. También nos quedamos con las palabras que tengan más de 8 apariciones.
+Vamos a analizar si hay palabras en los títulos que estén asociadas con un mayor puntaje. El procedimiento consistió en dividir los títulos en palabras y tomar promedio de los puntajes en IMDb. Esto no lo realizaremos para cada palabra, sino que se van a eliminar las stopwords, es decir palabras muy comúnes que no aportan información real. También nos quedamos con las palabras que tengan más de 8 apariciones.
 
 ```{r, include = FALSE}
 # Con el código siguiente, vamos a tomar cada palabra que aparece en un título, eliminando las stopwords, para luego contar cuantas veces aparece y tomar promedio de los puntajes de imdb. Es un enfoque simple, pero resulta interesante llevarlo a cabo.
@@ -391,7 +391,7 @@ La similitud entre ambos coeficientes muestra que el ajuste modifica poco la aso
 
 # 3: Selección de modelos
 
-Además de las variables originales de la base de títulos, se incorporó información proveniente de la base de créditos. En particular, para cada título se calculó la cantidad de actores. A partir de la base de títulos también se construyeron variables derivadas, como la cantidad de países y de géneros registrados. En el caso de los géneros, se conservó únicamente el género principal de cada título, ya que la variable original contenía una lista de géneros y esta simplificación permitió incorporarla de manera sencilla en los modelos que requieren una única categoría por observación.
+Además de las variables originales de la base de títulos, se incorporó información proveniente de la base de créditos. En particular, para cada título se calculó la cantidad de actores. A partir de la base de títulos también se construyeron variables derivadas, como la cantidad de países y de géneros registrados. En el caso de los géneros, se conservó únicamente el género principal de cada título, ya que la variable original contenía una lista de géneros y esta simplificación permitió incorporarla de manera sencilla en los modelos que requieren una única categoría por observación. Con la variable País también nos quedamos únicamente con un solo dato.
 
 ```{r, include = FALSE}
 
@@ -587,6 +587,11 @@ preparar_datos <- function(datos, mediana_votos) {
 
       # La ausencia de clasificación se conserva
       # como una categoría adicional.
+      
+      age_certification = na_if(
+        str_trim(age_certification),
+        ""
+      ),
 
       age_certification = replace_na(
         age_certification,
@@ -638,6 +643,8 @@ stopifnot(
 ```
 
 Antes de ajustar los modelos, se analizaron los valores faltantes de las variables predictoras. En el caso de `seasons`, los faltantes correspondían a películas, para las cuales la cantidad de temporadas no resulta aplicable. Por este motivo, se reemplazaron por cero. La ausencia de `age_certification` se representó mediante una categoría adicional denominada “Sin dato”, evitando eliminar los títulos sin clasificación informada. Para los títulos sin información sobre la cantidad de votos de IMDb, se reemplazó el logaritmo de dicha variable por la mediana calculada exclusivamente sobre el conjunto de entrenamiento. El mismo tratamiento se aplicó posteriormente al conjunto de validación, evitando utilizar información de este último durante la preparación de los datos.
+
+Luego de transformar las tablas originales y evaluar distintos conjuntos de variables, la mayoría de los modelos se entrenó utilizando como conjunto base de predictores las variables type, release_year, runtime, seasons, age_certification, log_imdb_votes, votos_faltantes, genero_principal y pais. A partir de este conjunto base, algunos modelos incorporaron variables o estructuras adicionales según sus características.
 
 El siguiente paso es construir el modelo base, que predice siempre el promedio y nos da un MSE mínimo de referencia para evaluar si los modelos posteriores realmente aportan capacidad predictiva.
 
@@ -711,7 +718,7 @@ resultados_modelos %>%
 
 ### Primer modelo
 
-Como primer modelo candidato se ajustó una regresión lineal múltiple. Se incluyeron características originales de los títulos, como el tipo de contenido, el año de lanzamiento, la duración, la cantidad de temporadas y la clasificación etaria. También se incorporaron la cantidad de votos transformada logarítmicamente.
+Como primer modelo candidato se ajustó una **regresión lineal múltiple**. Se incluyeron características originales de los títulos, como el tipo de contenido, el año de lanzamiento, la duración, la cantidad de temporadas y la clasificación etaria. También se incorporaron la cantidad de votos transformada logarítmicamente, el país y género principal.
 
 ```{r, include=FALSE}
 
@@ -801,7 +808,7 @@ El modelo lineal obtuvo un MSE de `r round(mse_lineal, 3)` en el conjunto de val
 
 ### Segundo modelo
 
-Como segundo modelo candidato se ajustó una regresión con splines penalizados. En particular, se permitió que el año de lanzamiento, la duración y el logaritmo de la cantidad de votos tuvieran relaciones no lineales con el puntaje de IMDb. Las demás variables se incorporaron de la misma forma que en la regresión lineal, facilitando la comparación entre ambos modelos.
+Como segundo modelo candidato se ajustó una regresión con **splines penalizados**. En particular, se permitió que el año de lanzamiento, la duración y el logaritmo de la cantidad de votos tuvieran relaciones no lineales con el puntaje de IMDb. Las demás variables se incorporaron de la misma forma que en la regresión lineal, facilitando la comparación entre ambos modelos.
 
 El grado de suavidad de las curvas fue seleccionado mediante REML, penalizando aquellas formas excesivamente complejas. De esta manera, el modelo puede capturar patrones no lineales sin ajustarse innecesariamente a las observaciones de entrenamiento.
 
@@ -814,11 +821,11 @@ El grado de suavidad de las curvas fue seleccionado mediante REML, penalizando a
 modelo_splines <- gam(
   imdb_score ~
     type +
-    s(release_year, k = 10) +
-    s(runtime, k = 10) +
+    s(release_year, k = 10, bs = "cr") +
+    s(runtime, k = 10, bs = "cr") +
     seasons +
     age_certification +
-    s(log_imdb_votes, k = 10) +
+    s(log_imdb_votes, k = 10, bs = "cr") +
     votos_faltantes +
     cantidad_actores +
     genero_principal+
@@ -903,7 +910,7 @@ La regresión con splines obtuvo un MSE de `r round(mse_splines, 3)` en el conju
 
 ### Tercer modelo
 
-Como tercer modelo candidato se ajustó un árbol de regresión. Este modelo divide recursivamente el espacio de las variables predictoras en regiones y asigna a cada región una predicción correspondiente al puntaje promedio de los títulos que la integran. A diferencia de la regresión lineal, el árbol puede representar relaciones no lineales e interacciones entre variables sin que estas deban especificarse previamente.
+Como tercer modelo candidato se ajustó un **árbol de regresión**. Este modelo divide recursivamente el espacio de las variables predictoras en regiones y asigna a cada región una predicción correspondiente al puntaje promedio de los títulos que la integran. A diferencia de la regresión lineal, el árbol puede representar relaciones no lineales e interacciones entre variables sin que estas deban especificarse previamente.
 
 ```{r, include = FALSE}
 
@@ -1034,15 +1041,15 @@ resultados_modelos %>%
   )
 ```
 
-El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación. El árbol de regresión obtuvo un MSE de 1,007 en el conjunto de validación.
+El árbol podado quedó compuesto por `r cantidad_hojas_arbol` nodos terminales y obtuvo un MSE de `r round(mse_arbol, 3)` sobre el conjunto de validación.
 
 ### Cuarto modelo
 
-Ahora, siguiendo la línea del modelo anterior, implementamos un Random Forest. Este método consiste en construir múltiples árboles de regresión sobre distintas muestras bootstrap del conjunto de entrenamiento. Además, en cada división de cada árbol se considera únicamente un subconjunto aleatorio de las variables predictoras, lo que introduce diversidad entre los árboles y reduce la correlación entre ellos. La predicción final se obtiene promediando las predicciones de todos los árboles del bosque.
+Ahora, siguiendo la línea del modelo anterior, implementamos un **Random Forest**. Este método consiste en construir múltiples árboles de regresión sobre distintas muestras bootstrap del conjunto de entrenamiento. Además, en cada división de cada árbol se considera únicamente un subconjunto aleatorio de las variables predictoras, lo que introduce diversidad entre los árboles y reduce la correlación entre ellos. La predicción final se obtiene promediando las predicciones de todos los árboles del bosque.
 
 ```{r, include = FALSE}
 
-# Entrenamos el Random Forest. 0.899
+# Entrenamos el Random Forest. 
 
 modelo_rf <- ranger(
   imdb_score ~
@@ -1136,11 +1143,11 @@ resultados_modelos %>%
   )
 ```
 
-En este trabajo se construyó un bosque de 500 árboles y se fijó una semilla para garantizar la reproducibilidad de los resultados. El modelo obtuvo un MSE de validación de 0.868, siendo el mejor desempeño alcanzado hasta el momento. En particular, representa una mejora de aproximadamente un X% respecto del modelo basado en splines cúbicos.
+En este trabajo se construyó un bosque de 500 árboles y se fijó una semilla para garantizar la reproducibilidad de los resultados. El modelo obtuvo un MSE de validación de `r round(mse_rf, 3)`, siendo el mejor desempeño alcanzado hasta el momento.
 
 ### Quinto modelo
 
-En esta sección implementamos distintos modelos de efectos mixtos. En este tipo de modelos, el diseño de la estructura de efectos fijos y aleatorios resulta fundamental, ya que determina qué parte de la variabilidad se explica mediante covariables observadas y cuál se atribuye a diferencias entre grupos. En los tres modelos consideramos como efectos fijos las variables type, release_year, runtime, seasons, age_certification, log_imdb_votes, votos_faltantes, comedia, cantidad_generos y cantidad_actores. A partir de esta estructura base, fuimos incorporando distintos efectos aleatorios para evaluar su impacto en el desempeño predictivo.
+En esta sección implementamos distintos **modelos de efectos mixtos**. En este tipo de modelos, el diseño de la estructura de efectos fijos y aleatorios resulta fundamental, ya que determina qué parte de la variabilidad se explica mediante covariables observadas y cuál se atribuye a diferencias entre grupos. En los tres modelos consideramos como efectos fijos las variables type, release_year, runtime, seasons, age_certification, log_imdb_votes, votos_faltantes, comedia, cantidad_generos y cantidad_actores. A partir de esta estructura base, fuimos incorporando distintos efectos aleatorios para evaluar su impacto en el desempeño predictivo.
 
 El primer modelo incluye únicamente un intercepto aleatorio por país. El segundo agrega, además, un intercepto aleatorio por director. Finalmente, el tercer modelo incorpora también un intercepto aleatorio por género principal y permite que el efecto de la duración (runtime) varíe entre países mediante una pendiente aleatoria (runtime \| pais).
 
@@ -1306,10 +1313,12 @@ resultados_modelos %>%
   )
 ```
 
-Como se observa en la tabla, el tercer modelo supera a los demás modelos de efectos mixtos. Y también ... SEGUIR CUANDO ESTE TODO LO OTRO
+Como se observa en la tabla, el tercer modelo supera a los demás modelos de efectos mixtos. Pero no llega a mejorar el resultado obtenido con el random forest.
+
+### Sexto Modelo
 
 ```{r, include = FALSE}
-#Esto es para el 6to modelo, todavia no agrego texto porque nose si va a funcionar
+#Esto es para extraer los datos de entrenamiento y validacion para el script de python
 
 write.csv(datos_entrenamiento,
           "datos_entrenamiento.csv",
@@ -1320,14 +1329,194 @@ write.csv(datos_validacion,
           row.names = FALSE)
 ```
 
-MODIFICAR CUANDO ESTEN TODOS LOS MODELOS TERMINADOS Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,331. La regresión lineal redujo el error a 1,035, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de 0,969. El árbol de regresión obtuvo un error de 1,007, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de 0,899. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE de 0,937 a 0,900 y finalmente a 0,895. Esto sugiere que parte de la variabilidad de los puntajes se encuentra asociada con características compartidas por los títulos pertenecientes a los mismos grupos, especialmente el director, mientras que la incorporación adicional del género produjo una mejora más pequeña.
+Como sexto modelo implementamos una **red neuronal** incorporando, además de las variables estructuradas utilizadas previamente, la información textual del título y la descripción. Para ello, se utilizó un modelo basado en BERT ajustado como sentence-transformer, que permite transformar los textos en representaciones numéricas (embeddings).
 
-### Sexto Modelo
+Luego usamos estos embeddings y las variables utilizadas para los otros modelos como entrada de una red neuronal multicapa. El modelo fue entrenado con validación early-stopping para evitar overfitting y conservar los mejores pesos obtenidos.
 
-Como sexto modelo implementamos una red neuronal.A las variables que veníamos utilizando le sumamos Descripción + título, para poder usarlas utilizamos BERT finetuneado para sentence-transformer y de esta manera conseguimos representaciones númericas de estas variables. Por ahora el MSE es de 0.813, lo mejor hasta el momento... tengo que escribir un poco mas de esto y el codigo esta en python
+```{r, echo = FALSE}
+
+# Incorporamos el MSE a la tabla comparativa.
+
+resultados_modelos <- bind_rows(
+  resultados_modelos,
+  tibble(
+    Modelo = "Red Neuronal",
+    MSE = 1
+  )
+)
+
+resultados_modelos %>%
+  mutate(
+    MSE = round(MSE, 3)
+  ) %>%
+  kable(
+    caption = "Comparación del desempeño predictivo de los modelos",
+    col.names = c("Modelo", "MSE de validación"),
+    booktabs = TRUE,
+    align = c("l", "c")
+  ) %>%
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  row_spec(
+    0,
+    bold = TRUE
+  )
+```
+
+El modelo alcanzó un MSE de validación de X, siendo el mejor resultado obtenido hasta el momento.  
+
+El código de este modelo se encuentra en el archivo modelo6.py, ya que Python cuenta con librerías con mayor soporte para la implementación y entrenamiento de modelos de aprendizaje profundo.
+
+### Conclusión
+
+Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,335. La regresión lineal redujo el error a `r round(mse_lineal, 3)`, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de `r round(mse_splines, 3)`. El árbol de regresión obtuvo un error de `r round(mse_arbol, 3)`, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de `r round(mse_rf, 3)`. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE y finalmente se llegó a `r round(mse_mixto3, 3)`. 
+
 
 # 4: Competencia
 
-ESTO CAMBIO Dentro de la partición de entrenamiento y validación utilizada, el menor MSE correspondió al modelo de efectos mixtos con país, director y género, con un valor de 0,895. Por este motivo, se lo seleccionó como modelo final para generar las predicciones solicitadas.
+Dentro de la partición de entrenamiento y validación utilizada, el menor MSE correspondió al modelo basado en redes neuronales. Por este motivo, se lo seleccionó como modelo final para generar las predicciones solicitadas.
 
-Sin embargo, su diferencia respecto de Random Forest, cuyo MSE fue de 0,899, es reducida, por lo que ambos modelos mostraron un desempeño predictivo muy similar. CONFIRMAR ESTO Y ARRANCAR
+Sin embargo, su diferencia respecto de Random Forest, cuyo MSE fue de 0,871, es reducida, por lo que ambos modelos mostraron un desempeño predictivo muy similar. Realizaremos las predicciones para los dos modelos.
+
+
+
+```{r, include = FALSE}
+# Preprocessing de los datos de testeo
+
+#importamos los datos
+titles_test <- read.csv("titles_test.csv")
+credits_test <- read.csv("credits_test.csv")
+
+#construimos reusumen de creditos
+credits_resumen_test <- credits_test %>%
+  group_by(id) %>%
+  summarise(
+    cantidad_actores = n_distinct(
+      person_id[role == "ACTOR"],
+      na.rm = TRUE
+    ),
+    director = first(
+      name[role == "DIRECTOR"]
+    ),
+    .groups = "drop"
+  )
+
+#construimos datos_test
+datos_test <- titles_test %>%
+  left_join(
+    credits_resumen_test,
+    by = "id"
+  ) %>%
+  mutate(
+    cantidad_actores = replace_na(
+      cantidad_actores,
+      0L
+    ),
+    director = replace_na(
+      director,
+      "Sin director"
+    ),
+    cantidad_generos = if_else(
+      genres == "[]",
+      0L,
+      str_count(genres, ",") + 1L
+    ),
+    cantidad_paises = if_else(
+      production_countries == "[]",
+      0L,
+      str_count(production_countries, ",") + 1L
+    ),
+    largo_titulo = nchar(title),
+    log_imdb_votes = log1p(imdb_votes)
+  )
+
+#Agregamos género principal
+datos_test <- datos_test %>%
+  mutate(
+    genero_principal = genres %>%
+      str_remove_all("\\[|\\]|'") %>%
+      str_split(",\\s*") %>%
+      map_chr(~ {
+        if(length(.x) == 0 || .x[1] == "") {
+          "Sin género"
+        } else {
+          .x[1]
+        }
+      })
+  )
+
+#Agregamos país principal
+datos_test <- datos_test %>%
+  mutate(
+    pais = production_countries |>
+      str_remove_all("\\[|\\]|'") |>
+      str_split(",\\s*") |>
+      sapply(`[`, 1)
+  )
+
+#aplicamos tratamiento de faltantes
+datos_test <- preparar_datos(
+  datos_test,
+  mediana_log_votos
+)
+
+#Igualamos factores
+datos_entrenamiento$age_certification <- factor(
+  datos_entrenamiento$age_certification
+)
+
+datos_test$age_certification <- factor(
+  datos_test$age_certification,
+  levels = levels(datos_entrenamiento$age_certification)
+)
+
+
+datos_entrenamiento$genero_principal <- factor(
+  datos_entrenamiento$genero_principal
+)
+
+datos_test$genero_principal <- factor(
+  datos_test$genero_principal,
+  levels = levels(datos_entrenamiento$genero_principal)
+)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
