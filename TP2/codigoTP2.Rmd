@@ -1490,4 +1490,12 @@ datos_test$genero_principal <- factor(
 
 ```
 
+```{r, include = FALSE}
+write.csv(datos_test,
+          "datos_test.csv",
+          row.names = FALSE)
+```
+
+
+
 
