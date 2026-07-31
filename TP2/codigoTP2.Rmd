@@ -102,7 +102,7 @@ Existe un importante solapamiento entre las distribuciones, por lo que el géner
 
 ### Actores y Directores
 
-Observemos si hay actores y directores que tengan mejores valoraciones que los demás.
+Observemos si hay actores y directores que tienen mejores valoraciones que los demás.
 
 ```{r, echo = FALSE}
 
@@ -1344,7 +1344,7 @@ resultados_modelos <- bind_rows(
   resultados_modelos,
   tibble(
     Modelo = "Red Neuronal",
-    MSE = 1
+    MSE = 0.820
   )
 )
 
@@ -1370,13 +1370,13 @@ resultados_modelos %>%
   )
 ```
 
-El modelo alcanzó un MSE de validación de X, siendo el mejor resultado obtenido hasta el momento.  
+El modelo alcanzó un MSE de validación de 0.820, siendo el mejor resultado obtenido hasta el momento.  
 
 El código de este modelo se encuentra en el archivo modelo6.py, ya que Python cuenta con librerías con mayor soporte para la implementación y entrenamiento de modelos de aprendizaje profundo.
 
 ### Conclusión
 
-Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,335. La regresión lineal redujo el error a `r round(mse_lineal, 3)`, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de `r round(mse_splines, 3)`. El árbol de regresión obtuvo un error de `r round(mse_arbol, 3)`, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de `r round(mse_rf, 3)`. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE y finalmente se llegó a `r round(mse_mixto3, 3)`. 
+Concluyendo, todos los modelos evaluados mejoraron el desempeño del modelo base, cuyo MSE fue de 1,335. La regresión lineal redujo el error a `r round(mse_lineal, 3)`, mientras que la incorporación de relaciones no lineales mediante splines penalizados permitió alcanzar un MSE de `r round(mse_splines, 3)`. El árbol de regresión obtuvo un error de `r round(mse_arbol, 3)`, pero su extensión mediante Random Forest mejoró la capacidad predictiva y alcanzó un MSE de `r round(mse_rf, 3)`. Los modelos de efectos mixtos también presentaron un buen desempeño. La incorporación sucesiva de interceptos aleatorios para país, director y género redujo el MSE y finalmente se llegó a `r round(mse_mixto3, 3)`. Y el modelo de la red neuronal superó a todos con un MSE de 0.820.
 
 
 # 4: Competencia
@@ -1496,6 +1496,32 @@ write.csv(datos_test,
           row.names = FALSE)
 ```
 
+```{r, include = FALSE}
+#predicciones del random forest
+
+predicciones_rf <- predict(
+  modelo_rf,
+  data = datos_test
+)$predictions
+
+
+```
+
+
+```{r, include = FALSE}
+stopifnot(
+  length(predicciones_rf) == nrow(datos_test),
+  !anyNA(predicciones_rf)
+)
+
+write.table(
+  predicciones_rf,
+  file = "predicciones_Souto_Chiquinho_RandomF.csv",
+  sep = ",",
+  row.names = FALSE,
+  col.names = FALSE,
+)
+```
 
 
 
